@@ -1,8 +1,10 @@
 from fastapi import FastAPI
 import logging
+from typing import List
 from app.core.config import settings
 from app.core.exceptions import TriagePipelineException, global_exception_handler, triage_exception_handler
-from app.models.schemas import IncomingLogPayload
+from app.models.schemas import IncomingLogPayload, KnownErrorManualEntry
+from app.services.vector_db import VectorStore
 
 # Configure structured JSON-like logging for production systems
 logging.basicConfig(
@@ -19,6 +21,21 @@ app = FastAPI(
 # Register exception handlers
 app.add_exception_handler(Exception, global_exception_handler)
 app.add_exception_handler(TriagePipelineException, triage_exception_handler)
+
+# Initialize external services
+vector_store = VectorStore()
+
+@app.post("/api/v1/knowledge-base/ingest", status_code=201)
+async def ingest_knowledge_base(entries: List[KnownErrorManualEntry]):
+    """
+    Ingests Known Error Manual entries into the Vector DB for RAG.
+    """
+    try:
+        count = vector_store.ingest_entries(entries)
+        return {"status": "success", "inserted_count": count}
+    except Exception as e:
+        logging.error(f"Knowledge base ingestion failed: {e}")
+        raise TriagePipelineException(message=f"Ingestion failed: {str(e)}", status_code=500)
 
 @app.post("/api/v1/logs/triage", status_code=202)
 async def ingest_log(payload: IncomingLogPayload):

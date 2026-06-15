@@ -8,11 +8,23 @@ services:
       - "8000:8000"
     environment:
       - ENVIRONMENT=development
-      # Placeholder for Phase 2/3 ENV vars
-      # - VECTOR_DB_URL=http://chromadb:8000
+      - VECTOR_DB_URL=http://chromadb:8000
+      # Placeholder for Phase 3 ENV vars
       # - LLM_API_KEY=${LLM_API_KEY}
     volumes:
       - .:/app
     restart: unless-stopped
-    # depends_on:
-    #   - chromadb # To be added in Phase 2
+    depends_on:
+      - chromadb
+
+  chromadb:
+    image: chromadb/chroma:0.5.0
+    container_name: log-triager-chromadb
+    ports:
+      - "8001:8000"
+    volumes:
+      - chromadb_data:/chroma/chroma
+    restart: unless-stopped
+
+volumes:
+  chromadb_data:

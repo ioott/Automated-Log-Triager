@@ -34,7 +34,7 @@ class DataMaskingService:
         if isinstance(payload, dict):
             return {k: self.mask_payload(v) for k, v in payload.items()}
         elif isinstance(payload, list):
-            return [self.mask_payload(i) for v in payload]
+            return [self.mask_payload(item) for item in payload]
         elif isinstance(payload, str):
             return self.mask_string(payload)
         else:

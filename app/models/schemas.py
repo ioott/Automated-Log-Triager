@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 from pydantic import BaseModel, Field
 
@@ -23,7 +23,6 @@ class ErrorPayload(BaseModel):
 class IncomingLogPayload(BaseModel):
     """
     Strict validation schema for incoming transaction failure logs.
-    This is the primary entry point for the triage pipeline.
     """
     timestamp: datetime = Field(..., description="ISO 8601 timestamp of the error.")
     transaction_id: str = Field(..., description="Unique identifier for the transaction.")
@@ -35,10 +34,9 @@ class IncomingLogPayload(BaseModel):
 class KnownErrorManualEntry(BaseModel):
     """
     Schema representing a single entry in the Known Errors Manual.
-    Used for embedding into the Vector DB during Phase 2.
     """
     error_code: str = Field(..., description="The exact error code to match against incoming logs.")
     technical_description: str = Field(..., description="Detailed technical explanation of the error.")
     root_cause: str = Field(..., description="Common root causes for this error.")
-    action_plan: str = Field(..., description="Step-by-step resolution or mitigation plan.")
+    action_plan: List[str] = Field(..., description="Step-by-step resolution or mitigation plan.")
     risk_level: str = Field(..., description="Risk level (e.g., CRITICAL, HIGH, MEDIUM, LOW).")

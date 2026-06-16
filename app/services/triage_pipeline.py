@@ -3,6 +3,7 @@ from app.models.schemas import IncomingLogPayload
 from app.services.masking import DataMaskingService
 from app.services.vector_db import VectorStore
 from app.services.agents import DiagnosticAgent
+from app.services.storage import ReportStorage
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +31,6 @@ class TriagePipelineService:
             logger.info(f"Log masked successfully for {transaction_id}")
             
             # 2. RAG (Search Knowledge Base)
-            # We search based on the error message or code
             search_query = f"{payload.error_payload.error_code} {payload.error_payload.message}"
             rag_results = self.vector_store.search_similar_errors(search_query)
             
@@ -48,12 +48,14 @@ class TriagePipelineService:
                 "transaction_id": transaction_id,
                 "status": "DIAGNOSED",
                 "diagnosis": diagnosis,
-                "rag_match": rag_context[:200] + "..." # Truncated for summary
+                "rag_match": rag_context[:200] + "...",
+                "timestamp": payload.timestamp.isoformat()
             }
             
             logger.info(f"Triage complete for {transaction_id}. Root cause: {diagnosis.get('root_cause')}")
             
-            # TODO: In Phase 4, we will push this to a DB/WebSocket for the dashboard
+            # Save to memory storage for Phase 4 Dashboard
+            ReportStorage.add_report(final_report)
             return final_report
 
         except Exception as e:
@@ -63,8 +65,8 @@ class TriagePipelineService:
                 "transaction_id": transaction_id,
                 "status": "[AI_DIAGNOSIS_FAILED]",
                 "raw_payload": payload.model_dump(),
-                "error": str(e)
+                "error": str(e),
+                "timestamp": payload.timestamp.isoformat()
             }
-            # Log the failure clearly
-            logger.warning(f"Forwarding raw log for {transaction_id} due to diagnosis failure.")
+            ReportStorage.add_report(failed_report)
             return failed_report

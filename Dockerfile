@@ -1,25 +1,22 @@
 FROM python:3.10-slim-bookworm
 
-# Set environment variables for non-interactive and unbuffered execution
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
-# Install system dependencies if required later
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
+    gcc \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy and install Python dependencies
 COPY requirements.txt .
+
+# Optimize: pre-install heavy AI dependencies separately or with verbose to see progress
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the source code
 COPY . .
 
-# Expose the API port
 EXPOSE 8000
 
-# Run the FastAPI server via Uvicorn
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

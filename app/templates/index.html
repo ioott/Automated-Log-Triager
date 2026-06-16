@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Log Triager Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .report-card { margin-bottom: 20px; transition: transform 0.2s; }
+        .report-card:hover { transform: scale(1.01); }
+        .risk-HIGH { border-left: 10px solid #dc3545; }
+        .risk-MEDIUM { border-left: 10px solid #ffc107; }
+        .risk-LOW { border-left: 10px solid #198754; }
+    </style>
+</head>
+<body class="bg-light">
+    <nav class="navbar navbar-dark bg-dark">
+        <div class="container">
+            <span class="navbar-brand mb-0 h1">🛡️ Automated Log Triager & Diagnostic Agent</span>
+        </div>
+    </nav>
+    <div class="container mt-4">
+        <h3>Live Diagnostic Reports</h3>
+        <hr>
+        <div id="reports-container"></div>
+    </div>
+    <script>
+        async function fetchReports() {
+            const res = await fetch("/api/v1/reports");
+            const reports = await res.json();
+            const container = document.getElementById("reports-container");
+            container.innerHTML = reports.map(r => `
+                <div class="card report-card shadow-sm risk-${r.diagnosis?.risk_assessment || "NONE"}">
+                    <div class="card-body">
+                        <h5>Tx ID: ${r.transaction_id} <span class="badge ${r.status==="DIAGNOSED"?"bg-success":"bg-danger"}">${r.status}</span></h5>
+                        <p class="text-muted small">${r.timestamp}</p>
+                        ${r.status==="DIAGNOSED"?`
+                            <strong>Root Cause:</strong> <p>${r.diagnosis.root_cause}</p>
+                            <strong>Plan:</strong> <ul>${r.diagnosis.action_plan.map(s => "<li>"+s+"</li>").join("")}</ul>
+                        `:`<div class="alert alert-warning">${r.error}</div>`}
+                    </div>
+                </div>
+            `).join("");
+        }
+        setInterval(fetchReports, 3000);
+        fetchReports();
+    </script>
+</body>
+</html>

@@ -10,11 +10,13 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
     
     # LLM Settings (Phase 3)
-    LLM_API_KEY: str = ""
+    OPENAI_API_KEY: str = "sk-placeholder"
+    OPENAI_MODEL_NAME: str = "gpt-4o"
     
     # Vector DB Settings (Phase 2)
-    VECTOR_DB_URL: str = ""
+    VECTOR_DB_URL: str = "http://chromadb:8000"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
 settings = Settings()
+

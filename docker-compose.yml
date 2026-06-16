@@ -9,8 +9,9 @@ services:
     environment:
       - ENVIRONMENT=development
       - VECTOR_DB_URL=http://chromadb:8000
-      # Placeholder for Phase 3 ENV vars
-      # - LLM_API_KEY=${LLM_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_MODEL_NAME=gpt-4o
+
     volumes:
       - .:/app
     restart: unless-stopped

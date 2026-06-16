@@ -9,9 +9,9 @@ class Settings(BaseSettings):
     VERSION: str = "0.1.0"
     ENVIRONMENT: str = "development"
     
-    # LLM Settings (Phase 3)
-    OPENAI_API_KEY: str = "sk-placeholder"
-    OPENAI_MODEL_NAME: str = "gpt-4o"
+    # AI Settings (Phase 3 - Google Gemini)
+    GOOGLE_API_KEY: str = "placeholder-key"
+    GEMINI_MODEL_NAME: str = "gemini-2.5-flash"
     
     # Vector DB Settings (Phase 2)
     VECTOR_DB_URL: str = "http://chromadb:8000"
@@ -19,4 +19,3 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
 settings = Settings()
-

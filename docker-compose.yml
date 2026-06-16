@@ -9,9 +9,8 @@ services:
     environment:
       - ENVIRONMENT=development
       - VECTOR_DB_URL=http://chromadb:8000
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - OPENAI_MODEL_NAME=gpt-4o
-
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - GEMINI_MODEL_NAME=models/gemini-2.5-flash
     volumes:
       - .:/app
     restart: unless-stopped

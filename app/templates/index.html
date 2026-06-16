@@ -25,18 +25,45 @@
         <div id="reports-container"></div>
     </div>
     <script>
+        // Função simples para padronizar a tag de risco para o CSS
+        function getRiskClass(assessment) {
+            if (!assessment) return "NONE";
+            let text = assessment.toUpperCase();
+            if (text.includes("HIGH")) return "HIGH";
+            if (text.includes("MEDIUM")) return "MEDIUM";
+            if (text.includes("LOW")) return "LOW";
+            return "NONE";
+        }
+
         async function fetchReports() {
             const res = await fetch("/api/v1/reports");
             const reports = await res.json();
             const container = document.getElementById("reports-container");
             container.innerHTML = reports.map(r => `
-                <div class="card report-card shadow-sm risk-${r.diagnosis?.risk_assessment || "NONE"}">
+                <div class="card report-card shadow-sm risk-${getRiskClass(r.diagnosis?.risk_assessment)}">
                     <div class="card-body">
-                        <h5>Tx ID: ${r.transaction_id} <span class="badge ${r.status==="DIAGNOSED"?"bg-success":"bg-danger"}">${r.status}</span></h5>
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h5 class="mb-0">Tx ID: ${r.transaction_id}</h5>
+                            <span class="badge ${r.status==="DIAGNOSED"?"bg-success":"bg-danger"}">${r.status}</span>
+                        </div>
                         <p class="text-muted small">${r.timestamp}</p>
+                        
                         ${r.status==="DIAGNOSED"?`
-                            <strong>Root Cause:</strong> <p>${r.diagnosis.root_cause}</p>
-                            <strong>Plan:</strong> <ul>${r.diagnosis.action_plan.map(s => "<li>"+s+"</li>").join("")}</ul>
+                            <div class="mb-3">
+                                <strong>Risk Assessment:</strong>
+                                <p class="text-danger fw-bold">${r.diagnosis.risk_assessment}</p>
+                            </div>
+                            <div class="mb-3">
+                                <strong>Root Cause:</strong> 
+                                <p>${r.diagnosis.root_cause}</p>
+                            </div>
+                            <div class="mb-3">
+                                <strong>Recommended Action Plan:</strong> 
+                                <ul>${r.diagnosis.action_plan.map(s => "<li>"+s+"</li>").join("")}</ul>
+                            </div>
+                            <div class="alert alert-info py-2 mt-3">
+                                <strong>Advisor Notes:</strong> <br> ${r.diagnosis.advisor_notes}
+                            </div>
                         `:`<div class="alert alert-warning">${r.error}</div>`}
                     </div>
                 </div>

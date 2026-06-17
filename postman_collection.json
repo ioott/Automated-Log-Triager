@@ -1,0 +1,246 @@
+{
+	"info": {
+		"_postman_id": "a1b2c3d4-e5f6-7890-1234-56789abcdef0",
+		"name": "Automated Log Triager API",
+		"description": "Enterprise-grade asynchronous pipeline that ingests logs, masks PII data, searches a ChromaDB RAG, and uses CrewAI/Gemini to diagnose failures.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "System Health",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:8000/health",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8000",
+					"path": [
+						"health"
+					]
+				},
+				"description": "Liveness probe for infrastructure monitoring."
+			},
+			"response": [
+				{
+					"name": "Success",
+					"originalRequest": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8000/health",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"health"
+							]
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": "json",
+					"header": [],
+					"cookie": [],
+					"body": "{\n    \"status\": \"ok\",\n    \"environment\": \"development\"\n}"
+				}
+			]
+		},
+		{
+			"name": "RAG: Ingest Knowledge Base",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "[\n    {\n        \"error_code\": \"CW_ERR_BLOCKCHAIN_TIMEOUT\",\n        \"technical_description\": \"Gateway timeout when broadcasting transaction payload to Stratus node.\",\n        \"root_cause\": \"The Stratus node (RPC) took longer than 15 seconds to acknowledge the signed transaction, commonly due to network congestion.\",\n        \"action_plan\": [\n            \"Verify RPC health at rpc.stratus.cloudwalk.io\",\n            \"If down, switch to fallback RPC\",\n            \"Monitor mempool queue size\"\n        ],\n        \"risk_level\": \"HIGH\"\n    }\n]"
+				},
+				"url": {
+					"raw": "http://localhost:8000/api/v1/knowledge-base/ingest",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"v1",
+						"knowledge-base",
+						"ingest"
+					]
+				},
+				"description": "Ingests a batch of technical manual entries into ChromaDB to serve as context for the RAG architecture."
+			},
+			"response": [
+				{
+					"name": "Created",
+					"originalRequest": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "[\n    {\n        \"error_code\": \"CW_ERR_BLOCKCHAIN_TIMEOUT\",\n        \"technical_description\": \"Gateway timeout when broadcasting transaction payload to Stratus node.\",\n        \"root_cause\": \"The Stratus node (RPC) took longer than 15 seconds to acknowledge the signed transaction, commonly due to network congestion.\",\n        \"action_plan\": [\n            \"Verify RPC health at rpc.stratus.cloudwalk.io\",\n            \"If down, switch to fallback RPC\",\n            \"Monitor mempool queue size\"\n        ],\n        \"risk_level\": \"HIGH\"\n    }\n]"
+						},
+						"url": {
+							"raw": "http://localhost:8000/api/v1/knowledge-base/ingest",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"api",
+								"v1",
+								"knowledge-base",
+								"ingest"
+							]
+						}
+					},
+					"status": "Created",
+					"code": 201,
+					"_postman_previewlanguage": "json",
+					"header": [],
+					"cookie": [],
+					"body": "{\n    \"status\": \"success\",\n    \"inserted_count\": 1\n}"
+				}
+			]
+		},
+		{
+			"name": "Logs: Submit for Triage",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"timestamp\": \"2026-06-09T23:15:00Z\",\n    \"transaction_id\": \"tx_cw_PORTFOLIO_DEMO_01\",\n    \"service\": \"stratus-ledger-gateway\",\n    \"environment\": \"production\",\n    \"error_payload\": {\n        \"component\": \"EVM-Bridge-Client\",\n        \"http_status\": 504,\n        \"error_code\": \"CW_ERR_BLOCKCHAIN_TIMEOUT\",\n        \"message\": \"Gateway timeout from IP 192.168.1.99 and user investor@example.com\",\n        \"network_details\": {\n            \"target_host\": \"rpc.stratus.cloudwalk.io\",\n            \"latency_ms\": 15000,\n            \"retries_attempted\": 3\n        },\n        \"raw_trace\": \"Panic trace for john.doe@cloudwalk.io. Connection reset by peer.\"\n    }\n}"
+				},
+				"url": {
+					"raw": "http://localhost:8000/api/v1/logs/triage",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"v1",
+						"logs",
+						"triage"
+					]
+				},
+				"description": "Receives a raw transaction log. Validates via Pydantic, triggers the background pipeline (Masking -> RAG -> AI Agent), and returns a 202 Accepted."
+			},
+			"response": [
+				{
+					"name": "Accepted (Async Processing)",
+					"originalRequest": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"timestamp\": \"2026-06-09T23:15:00Z\",\n    \"transaction_id\": \"tx_cw_PORTFOLIO_DEMO_01\",\n    \"service\": \"stratus-ledger-gateway\",\n    \"environment\": \"production\",\n    \"error_payload\": {\n        \"component\": \"EVM-Bridge-Client\",\n        \"http_status\": 504,\n        \"error_code\": \"CW_ERR_BLOCKCHAIN_TIMEOUT\",\n        \"message\": \"Gateway timeout from IP 192.168.1.99 and user investor@example.com\",\n        \"network_details\": {\n            \"target_host\": \"rpc.stratus.cloudwalk.io\",\n            \"latency_ms\": 15000,\n            \"retries_attempted\": 3\n        },\n        \"raw_trace\": \"Panic trace for john.doe@cloudwalk.io. Connection reset by peer.\"\n    }\n}"
+						},
+						"url": {
+							"raw": "http://localhost:8000/api/v1/logs/triage",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"api",
+								"v1",
+								"logs",
+								"triage"
+							]
+						}
+					},
+					"status": "Accepted",
+					"code": 202,
+					"_postman_previewlanguage": "json",
+					"header": [],
+					"cookie": [],
+					"body": "{\n    \"status\": \"accepted\",\n    \"transaction_id\": \"tx_cw_PORTFOLIO_DEMO_01\",\n    \"message\": \"Log accepted for asynchronous triage.\"\n}"
+				}
+			]
+		},
+		{
+			"name": "Dashboard: Get All Reports",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:8000/api/v1/reports",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"v1",
+						"reports"
+					]
+				},
+				"description": "Retrieves all processed reports (both Successful Diagnoses and Fallback Errors) from the in-memory storage. Used by the web dashboard for real-time polling."
+			},
+			"response": [
+				{
+					"name": "Success",
+					"originalRequest": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8000/api/v1/reports",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"api",
+								"v1",
+								"reports"
+							]
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": "json",
+					"header": [],
+					"cookie": [],
+					"body": "[\n    {\n        \"transaction_id\": \"tx_cw_PORTFOLIO_DEMO_01\",\n        \"status\": \"DIAGNOSED\",\n        \"diagnosis\": {\n            \"root_cause\": \"The Stratus node (RPC) took longer than 15 seconds to acknowledge the signed transaction, likely due to network congestion or node synching delays.\",\n            \"action_plan\": [\n                \"Verify RPC health at rpc.stratus.cloudwalk.io.\",\n                \"If down, switch to fallback RPC.\",\n                \"Increase gas price or retry broadcast logic.\"\n            ],\n            \"risk_assessment\": \"HIGH\",\n            \"advisor_notes\": \"The failure points to a severe RPC lag or outage. Given the 15-second latency and multiple retries, immediate investigation into node health is required.\"\n        },\n        \"rag_match\": \"Error Code: CW_ERR_BLOCKCHAIN_TIMEOUT. Technical Description: Gateway timeout when broadcasting...\",\n        \"timestamp\": \"2026-06-09T23:15:00+00:00\"\n    }\n]"
+				}
+			]
+		}
+	]
+}

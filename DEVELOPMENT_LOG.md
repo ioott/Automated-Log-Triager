@@ -2,30 +2,39 @@
 
 ## 1. Full Project Phases
 - [x] **Phase 1: Foundation** (FastAPI, Pydantic validation, Clean Architecture setup, Docker, Background Tasks, Exception Handling)
-- [x] **Phase 2: RAG & Vector Database** (Set up ChromaDB/PGVector and ingest the Known Errors Manual)
-- [x] **Phase 3: AI Agent Integration** (Integrated CrewAI + LangChain using Google Gemini Free Tier, Data Masking Service, and Fallback Strategy)
+- [x] **Phase 2: RAG & Vector Database** (Set up ChromaDB and ingest the Known Errors Manual)
+- [x] **Phase 3: AI Agent Integration** (LangChain + Google Gemini Free Tier, Data Masking Service, Fallback Strategy)
 - [x] **Phase 4: Simple Web Dashboard** (Vanilla HTML/JS dashboard with real-time polling)
+- [x] **Phase 5: Codebase Corrections** (Completed LangChain refactor, organized routes into routers, adopted FastAPI lifespan pattern)
 
-## 2. Current Phase & Engineering Objectives
-**Project Completion - Phase 4 Finalized**
-- Organized code in the correct directory \`/Dev/Automated-Log-Triager\`.
-- Optimized Docker build times by refactoring CrewAI to LangChain.
-- Implemented real-time dashboard at the root URL (\`/\`).
-- Validated full pipeline from ingestion to masking to fallback storage.
+## 2. Architecture Summary
+
+The application is a 4-stage async pipeline triggered by `POST /api/v1/logs/triage`:
+
+1. **Masking** — `DataMaskingService` scrubs IPs, emails, and transaction IDs before any data reaches the LLM.
+2. **RAG** — `VectorStore` queries ChromaDB (`known_errors` collection) for the closest known-error entry.
+3. **AI Diagnosis** — `DiagnosticAgent` runs a `LangChain` chain (`ChatPromptTemplate | ChatGoogleGenerativeAI | JsonOutputParser`) backed by Google Gemini. Retries up to 3× on transient failures.
+4. **Storage** — `ReportStorage` keeps the final report in an in-memory list (capped at 50, newest-first).
+
+Services are initialized via FastAPI's `lifespan` context manager and injected into routes via `Depends`.
 
 ## 3. Completed Tasks (with Semantic Commits)
-- \`feat: initialize project structure and phase 1 foundation\`
-- \`feat: integrate chromadb and create knowledge base ingestion endpoint\`
-- \`feat: implement ai agent diagnostic pipeline and data masking\`
-- \`fix: resolve NameError in masking service and add unit tests\`
-- \`docs: add bilingual (EN/PT) README.md\`
-- \`perf: refactor to direct LangChain to solve build bloat and implement Phase 4 dashboard\`
+- `feat: initialize project structure and phase 1 foundation`
+- `feat: integrate chromadb and create knowledge base ingestion endpoint`
+- `feat: implement ai agent diagnostic pipeline and data masking`
+- `fix: resolve NameError in masking service and add unit tests`
+- `docs: add bilingual (EN/PT) README.md`
+- `perf: refactor to direct LangChain to solve build bloat and implement Phase 4 dashboard`
+- `fix: complete langchain refactor, organize api routers, adopt fastapi lifespan pattern`
 
 ## 4. Impediments & Applied Solutions
-- **CrewAI Dependency Bloat:** Build times were >1h. **Solution:** Refactored to pure LangChain, reducing image size and build time by 80%.
-- **Workspace Permissions:** Contorned by using shell redirection (\`cat << EOF\`) to manage files in the correct directory.
+- **CrewAI Dependency Bloat:** Build times were >1h. **Solution:** Replaced CrewAI entirely with a native LangChain `prompt | llm | JsonOutputParser` chain, removing the dependency from `requirements.txt`. `DiagnosticAgent` is now ~60 lines with no framework overhead.
+- **Incomplete Router Structure:** Routes lived in `main.py` while `app/api/` was empty. **Solution:** Created `app/api/logs.py`, `app/api/knowledge_base.py`, and `app/api/reports.py`; services are injected via `app/core/dependencies.py` using FastAPI's `Depends`.
+- **Deprecated Startup Events:** Module-level service initialization was replaced with FastAPI's `lifespan` async context manager (the modern pattern since FastAPI 0.93).
+- **Workspace Permissions:** Contorned by using shell redirection (`cat << EOF`) to manage files in the correct directory.
 - **Serialization:** Fixed datetime serialization issue in masking service.
 
-## 5. Immediate Next Steps
-- User to provide real \`OPENAI_API_KEY\` in \`.env\` for live AI diagnoses.
+## 5. Next Steps
+- Populate the knowledge base: call `POST /api/v1/knowledge-base/ingest` with known-error entries before running triage (see `postman_collection.json`).
+- Set `GOOGLE_API_KEY` in `.env` for live AI diagnoses.
 - Record the portfolio demonstration video.

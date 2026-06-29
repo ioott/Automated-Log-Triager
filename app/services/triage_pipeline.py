@@ -1,72 +1,72 @@
 import logging
 from app.models.schemas import IncomingLogPayload
-from app.services.masking import DataMaskingService
+from app.services import masking, storage
 from app.services.vector_db import VectorStore
 from app.services.agents import DiagnosticAgent
-from app.services.storage import ReportStorage
 
 logger = logging.getLogger(__name__)
 
+
 class TriagePipelineService:
-    """
-    Main orchestration service for the Log Triage pipeline.
-    Connects Masking, RAG (VectorStore), and AI Agents.
-    """
-    
+    """Orchestrates the 4-stage log triage pipeline."""
+
     def __init__(self, vector_store: VectorStore):
-        self.masker = DataMaskingService()
         self.vector_store = vector_store
         self.agent = DiagnosticAgent()
 
     async def process_log(self, payload: IncomingLogPayload):
-        """
-        Executes the full pipeline for an incoming log.
-        """
         transaction_id = payload.transaction_id
         try:
-            logger.info(f"Starting triage pipeline for transaction: {transaction_id}")
-            
-            # 1. Data Masking
-            masked_log = self.masker.mask_log(payload.model_dump())
+            logger.info(
+                f"Starting triage pipeline for transaction: {transaction_id}"
+            )
+
+            masked_log = masking.mask_log(payload.model_dump())
             logger.info(f"Log masked successfully for {transaction_id}")
-            
-            # 2. RAG (Search Knowledge Base)
-            search_query = f"{payload.error_payload.error_code} {payload.error_payload.message}"
-            rag_results = self.vector_store.search_similar_errors(search_query)
-            
+
+            query = (
+                f"{payload.error_payload.error_code} "
+                f"{payload.error_payload.message}"
+            )
+            rag_results = self.vector_store.search_similar_errors(query)
+
             rag_context = "No direct match found in Knowledge Base."
-            if rag_results and rag_results['documents']:
-                rag_context = rag_results['documents'][0][0]
-            
+            if rag_results and rag_results["documents"]:
+                rag_context = rag_results["documents"][0][0]
+
             logger.info(f"RAG context retrieved for {transaction_id}")
-            
-            # 3. AI Agent Diagnosis
-            diagnosis = await self.agent.run_diagnosis(masked_log, rag_context)
-            
-            # Final output structured for SRE (as advisors)
+
+            diagnosis = await self.agent.run_diagnosis(
+                masked_log, rag_context
+            )
+
             final_report = {
                 "transaction_id": transaction_id,
                 "status": "DIAGNOSED",
                 "diagnosis": diagnosis,
                 "rag_match": rag_context[:200] + "...",
-                "timestamp": payload.timestamp.isoformat()
+                "timestamp": payload.timestamp.isoformat(),
             }
-            
-            logger.info(f"Triage complete for {transaction_id}. Root cause: {diagnosis.get('root_cause')}")
-            
-            # Save to memory storage for Phase 4 Dashboard
-            ReportStorage.add_report(final_report)
+
+            logger.info(
+                f"Triage complete for {transaction_id}. "
+                f"Root cause: {diagnosis.get('root_cause')}"
+            )
+
+            storage.add_report(final_report)
             return final_report
 
         except Exception as e:
-            logger.error(f"PIPELINE FAILURE for {transaction_id}: {str(e)}", exc_info=True)
-            # Fallback Strategy: Never lose the log
+            logger.error(
+                f"PIPELINE FAILURE for {transaction_id}: {str(e)}",
+                exc_info=True,
+            )
             failed_report = {
                 "transaction_id": transaction_id,
                 "status": "[AI_DIAGNOSIS_FAILED]",
                 "raw_payload": payload.model_dump(),
                 "error": str(e),
-                "timestamp": payload.timestamp.isoformat()
+                "timestamp": payload.timestamp.isoformat(),
             }
-            ReportStorage.add_report(failed_report)
+            storage.add_report(failed_report)
             return failed_report

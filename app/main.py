@@ -4,11 +4,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from app.core.config import settings
-from app.core.exceptions import (
-    global_exception_handler,
-    triage_exception_handler,
-    TriagePipelineException,
-)
+from app.core.exceptions import global_exception_handler
 from app.services.vector_db import VectorStore
 from app.services.triage_pipeline import TriagePipelineService
 from app.api import logs, knowledge_base, reports
@@ -44,7 +40,6 @@ app = FastAPI(
 templates = Jinja2Templates(directory="app/templates")
 
 app.add_exception_handler(Exception, global_exception_handler)
-app.add_exception_handler(TriagePipelineException, triage_exception_handler)
 
 app.include_router(logs.router)
 app.include_router(knowledge_base.router)

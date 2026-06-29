@@ -4,7 +4,6 @@
 
 ---
 
-<a name="english"></a>
 ## English Version
 
 ### Overview
@@ -18,7 +17,7 @@ This project is built from scratch following **Clean Architecture**, **Domain-Dr
 - **Data Validation:** Pydantic v2
 - **Testing:** Pytest
 - **Containerization:** Docker & Docker Compose
-- **Integrations:** ChromaDB (RAG), CrewAI (Agentic Workflows), LangChain (LLM Orchestration)
+- **Integrations:** ChromaDB (RAG), LangChain (LLM Orchestration)
 - **LLM Engine:** Google Gemini (Generative AI)
 
 #### System Design
@@ -56,7 +55,6 @@ To deploy, connect your GitHub repository to the platform and configure the depl
 
 ---
 
-<a name="português"></a>
 ## Versão em Português
 
 ### Visão Geral
@@ -70,7 +68,7 @@ Este projeto foi desenvolvido do zero seguindo **Clean Architecture**, **Domain-
 - **Validação de Dados:** Pydantic v2
 - **Testes:** Pytest
 - **Containerização:** Docker & Docker Compose
-- **Integrações:** ChromaDB (RAG), CrewAI (Agentic Workflows), LangChain (Orquestração de LLM)
+- **Integrações:** ChromaDB (RAG), LangChain (Orquestração de LLM)
 - **Motor de IA:** Google Gemini (Generative AI)
 
 #### Design do Sistema

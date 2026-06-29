@@ -1,37 +1,35 @@
 import re
 import json
-from typing import Any, Union
+from typing import Any
 from datetime import datetime
 
-class DataMaskingService:
-    """
-    Enterprise-grade Data Masking Service using Regex.
-    Sanitizes PII, IPs, and Sensitive IDs before sending to LLM.
-    """
-    
-    IP_PATTERN = r'\b(?:\d{1,3}\.){3}\d{1,3}\b'
-    EMAIL_PATTERN = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
-    TX_ID_PATTERN = r'tx_[a-zA-Z0-9_]+'
-    
-    def mask_string(self, text: str) -> str:
-        if not text: return text
-        text = re.sub(self.IP_PATTERN, "[MASKED_IP]", text)
-        text = re.sub(self.EMAIL_PATTERN, "[MASKED_EMAIL]", text)
-        text = re.sub(self.TX_ID_PATTERN, "[MASKED_TX_ID]", text)
+_IP = re.compile(r'\b(?:\d{1,3}\.){3}\d{1,3}\b')
+_EMAIL = re.compile(
+    r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
+)
+_TX_ID = re.compile(r'tx_[a-zA-Z0-9_]+')
+
+
+def mask_string(text: str) -> str:
+    if not text:
         return text
+    text = _IP.sub("[MASKED_IP]", text)
+    text = _EMAIL.sub("[MASKED_EMAIL]", text)
+    text = _TX_ID.sub("[MASKED_TX_ID]", text)
+    return text
 
-    def mask_payload(self, payload: Any) -> Any:
-        if isinstance(payload, dict):
-            return {k: self.mask_payload(v) for k, v in payload.items()}
-        elif isinstance(payload, list):
-            return [self.mask_payload(item) for item in payload]
-        elif isinstance(payload, str):
-            return self.mask_string(payload)
-        elif isinstance(payload, datetime):
-            return payload.isoformat()
-        else:
-            return payload
 
-    def mask_log(self, payload_dict: dict) -> str:
-        masked_dict = self.mask_payload(payload_dict)
-        return json.dumps(masked_dict, indent=2)
+def mask_payload(payload: Any) -> Any:
+    if isinstance(payload, dict):
+        return {k: mask_payload(v) for k, v in payload.items()}
+    if isinstance(payload, list):
+        return [mask_payload(item) for item in payload]
+    if isinstance(payload, str):
+        return mask_string(payload)
+    if isinstance(payload, datetime):
+        return payload.isoformat()
+    return payload
+
+
+def mask_log(payload_dict: dict) -> str:
+    return json.dumps(mask_payload(payload_dict), indent=2)

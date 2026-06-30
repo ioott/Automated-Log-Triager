@@ -6,6 +6,7 @@
 - [x] **Phase 3: AI Agent Integration** (LangChain + Google Gemini Free Tier, Data Masking Service, Fallback Strategy)
 - [x] **Phase 4: Simple Web Dashboard** (Vanilla HTML/JS dashboard with real-time polling)
 - [x] **Phase 5: Codebase Corrections** (Completed LangChain refactor, organized routes into routers, adopted FastAPI lifespan pattern)
+- [x] **Phase 6: Observability & Operational Improvements** (Real health check, Correlation ID middleware, seed script, API tests, Makefile)
 
 ## 2. Architecture Summary
 
@@ -26,6 +27,8 @@ Services are initialized via FastAPI's `lifespan` context manager and injected i
 - `docs: add bilingual (EN/PT) README.md`
 - `perf: refactor to direct LangChain to solve build bloat and implement Phase 4 dashboard`
 - `fix: complete langchain refactor, organize api routers, adopt fastapi lifespan pattern`
+- `refactor: replace stateless classes and custom exception with simpler primitives`
+- `feat: add health check, correlation id, seed script, api tests and makefile`
 
 ## 4. Impediments & Applied Solutions
 - **CrewAI Dependency Bloat:** Build times were >1h. **Solution:** Replaced CrewAI entirely with a native LangChain `prompt | llm | JsonOutputParser` chain, removing the dependency from `requirements.txt`. `DiagnosticAgent` is now ~60 lines with no framework overhead.
@@ -35,6 +38,4 @@ Services are initialized via FastAPI's `lifespan` context manager and injected i
 - **Serialization:** Fixed datetime serialization issue in masking service.
 
 ## 5. Next Steps
-- Populate the knowledge base: call `POST /api/v1/knowledge-base/ingest` with known-error entries before running triage (see `postman_collection.json`).
-- Set `GOOGLE_API_KEY` in `.env` for live AI diagnoses.
-- Record the portfolio demonstration video.
+- Record the demonstration video.

@@ -1,3 +1,4 @@
+import uuid
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
@@ -39,6 +40,15 @@ app = FastAPI(
 
 templates = Jinja2Templates(directory="app/templates")
 
+
+@app.middleware("http")
+async def correlation_id_middleware(request: Request, call_next):
+    request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
+    response = await call_next(request)
+    response.headers["X-Request-ID"] = request_id
+    return response
+
+
 app.add_exception_handler(Exception, global_exception_handler)
 
 app.include_router(logs.router)
@@ -52,7 +62,17 @@ async def dashboard(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
 
-@app.get("/health", status_code=200)
-async def health_check():
-    """Liveness probe for infrastructure monitoring."""
-    return {"status": "ok", "environment": settings.ENVIRONMENT}
+@app.get("/health")
+async def health_check(request: Request):
+    """Liveness and dependency probe."""
+    db_status = "ok"
+    try:
+        request.app.state.vector_store._get_collection()
+    except Exception:
+        db_status = "unavailable"
+    overall = "ok" if db_status == "ok" else "degraded"
+    return {
+        "status": overall,
+        "environment": settings.ENVIRONMENT,
+        "dependencies": {"chromadb": db_status},
+    }

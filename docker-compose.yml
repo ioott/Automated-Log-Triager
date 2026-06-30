@@ -13,6 +13,7 @@ services:
       - GEMINI_MODEL_NAME=models/gemini-2.5-flash
     volumes:
       - .:/app
+      - chroma_model_cache:/root/.cache/chroma
     restart: unless-stopped
     depends_on:
       - chromadb
@@ -28,3 +29,4 @@ services:
 
 volumes:
   chromadb_data:
+  chroma_model_cache:

@@ -7,7 +7,7 @@ stop:
 	docker compose down
 
 test:
-	PYTHONPATH=. pytest -v
+	PYTHONPATH=. venv/bin/python -m pytest -v
 
 seed:
-	python scripts/seed.py
+	venv/bin/python scripts/seed.py

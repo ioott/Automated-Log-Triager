@@ -26,7 +26,9 @@ _PROMPT = ChatPromptTemplate.from_messages([
             "- root_cause: string describing the likely root cause\n"
             "- action_plan: list of strings with step-by-step actions "
             "for the SRE team\n"
-            "- risk_assessment: one of HIGH, MEDIUM, or LOW\n"
+            "- risk_assessment: one of CRITICAL, HIGH, MEDIUM, or LOW. "
+            "If the technical manual context states a Known Risk Level, "
+            "use that value exactly unless the log strongly contradicts it\n"
             "- advisor_notes: string with additional observations or caveats"
         ),
     ),

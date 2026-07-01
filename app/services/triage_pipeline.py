@@ -33,6 +33,14 @@ class TriagePipelineService:
             rag_context = "No direct match found in Knowledge Base."
             if rag_results and rag_results["documents"]:
                 rag_context = rag_results["documents"][0][0]
+                metadatas = rag_results.get("metadatas") or [[]]
+                if metadatas[0]:
+                    known_risk_level = metadatas[0][0].get("risk_level")
+                    if known_risk_level:
+                        rag_context += (
+                            f"\nKnown Risk Level (from manual): "
+                            f"{known_risk_level}"
+                        )
 
             logger.info(f"RAG context retrieved for {transaction_id}")
 

@@ -9,6 +9,21 @@ router = APIRouter(prefix="/api/v1/knowledge-base", tags=["knowledge-base"])
 logger = logging.getLogger(__name__)
 
 
+@router.get("")
+async def list_knowledge_base(
+    vector_store: VectorStore = Depends(get_vector_store),
+):
+    """Lists all Known Error Manual entries stored in the Vector DB."""
+    try:
+        entries = vector_store.list_entries()
+        return {"count": len(entries), "entries": entries}
+    except Exception as e:
+        logger.error(f"Knowledge base listing failed: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Listing failed: {str(e)}"
+        )
+
+
 @router.post("/ingest", status_code=201)
 async def ingest_knowledge_base(
     entries: List[KnownErrorManualEntry],

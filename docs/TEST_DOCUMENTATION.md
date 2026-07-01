@@ -4,7 +4,7 @@
 This document outlines the procedures for testing the **Automated Log Triager & Diagnostic Agent**. 
 It includes instructions for running unit tests locally and an API reference for end-to-end (E2E) integration testing.
 
-A complete **Postman Collection** is available in the root directory: `postman_collection.json`. You can import this file directly into Postman to test all endpoints.
+A complete **Postman Collection** is available in this folder: `docs/postman_collection.json`. You can import this file directly into Postman to test all endpoints.
 
 ---
 

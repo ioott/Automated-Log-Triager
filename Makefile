@@ -10,4 +10,4 @@ test:
 	PYTHONPATH=. pytest -v
 
 seed:
-	python seed.py
+	python scripts/seed.py

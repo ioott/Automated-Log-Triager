@@ -53,6 +53,10 @@ PYTHONPATH=. pytest -v
 This project is containerized and ready for PaaS platforms like **Render** or **Railway**.
 To deploy, connect your GitHub repository to the platform and configure the deploy script to use the included `Dockerfile`. Ensure all environment variables (e.g., `GOOGLE_API_KEY`) are set in the platform settings.
 
+### Future Improvements
+- Search diagnosed reports (`/api/v1/reports`) by `transaction_id`, `error_code`, or free-text keyword instead of only returning the latest ones.
+- Search Known Error Manual entries (`/api/v1/knowledge-base`) by `error_code` or free-text keyword, complementing the existing full-list endpoint.
+
 ---
 
 ## Versão em Português
@@ -103,6 +107,10 @@ PYTHONPATH=. pytest -v
 ### Deploy
 Este projeto é containerizado e está pronto para plataformas PaaS como **Render** ou **Railway**.
 Para fazer o deploy, conecte seu repositório GitHub à plataforma e configure o script de deploy para usar o `Dockerfile` incluso. Certifique-se de que todas as variáveis de ambiente (ex: `GOOGLE_API_KEY`) estejam configuradas no painel da plataforma.
+
+### Melhorias Futuras
+- Buscar relatórios diagnosticados (`/api/v1/reports`) por `transaction_id`, `error_code` ou palavra-chave livre, em vez de retornar apenas os mais recentes.
+- Buscar entradas do Manual de Erros Conhecidos (`/api/v1/knowledge-base`) por `error_code` ou palavra-chave livre, complementando o endpoint de listagem completa já existente.
 
 ---
 *Placeholder: [Assista ao Vídeo de Demonstração Aqui]*

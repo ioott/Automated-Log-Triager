@@ -1,0 +1,261 @@
+[
+  {
+    "note": "ERR_RPC_NODE_TIMEOUT · HIGH — já pré-carregado no dashboard",
+    "payload": {
+      "timestamp": "2026-06-30T10:00:00.000Z",
+      "transaction_id": "tx_a1b2c3d4",
+      "service": "ledger-gateway",
+      "environment": "production",
+      "error_payload": {
+        "component": "evm-bridge-client",
+        "http_status": 504,
+        "error_code": "ERR_RPC_NODE_TIMEOUT",
+        "message": "Gateway timeout broadcasting transaction to RPC node.",
+        "network_details": {
+          "target_host": "rpc.internal",
+          "latency_ms": 15000,
+          "retries_attempted": 3
+        },
+        "raw_trace": "Panic: connection reset by peer at runtime.rs:142"
+      }
+    }
+  },
+  {
+    "note": "ERR_INSUFFICIENT_WALLET_FUNDS · MEDIUM",
+    "payload": {
+      "timestamp": "2026-06-30T10:05:00.000Z",
+      "transaction_id": "tx_e5f6g7h8",
+      "service": "payment-processor",
+      "environment": "production",
+      "error_payload": {
+        "component": "wallet-service",
+        "http_status": 402,
+        "error_code": "ERR_INSUFFICIENT_WALLET_FUNDS",
+        "message": "Transaction rejected: source wallet balance below required amount.",
+        "wallet_details": {
+          "required_amount": "0.95",
+          "available_balance": "0.12",
+          "currency": "ETH"
+        },
+        "network_details": {
+          "target_host": "wallet.internal",
+          "latency_ms": 120,
+          "retries_attempted": 0
+        },
+        "raw_trace": "Error: insufficient funds for transfer at ledger/wallet.go:318"
+      }
+    }
+  },
+  {
+    "note": "ERR_LEDGER_SYNC_DIVERGENCE · CRITICAL",
+    "payload": {
+      "timestamp": "2026-06-30T10:10:00.000Z",
+      "transaction_id": "tx_i9j0k1l2",
+      "service": "chain-validator",
+      "environment": "production",
+      "error_payload": {
+        "component": "sync-service",
+        "http_status": 500,
+        "error_code": "ERR_LEDGER_SYNC_DIVERGENCE",
+        "message": "Local ledger state diverged from canonical chain. Block validation failed.",
+        "sync_details": {
+          "local_block_hash": "0xabc123f...",
+          "expected_block_hash": "0xdef456a...",
+          "diverged_at_height": 4812903
+        },
+        "network_details": {
+          "target_host": "validator-node.internal",
+          "latency_ms": 80,
+          "retries_attempted": 0
+        },
+        "raw_trace": "FATAL: block hash mismatch at height 4812903, halting validation"
+      }
+    }
+  },
+  {
+    "note": "ERR_BRIDGE_SERVICE_UNAVAILABLE · HIGH",
+    "payload": {
+      "timestamp": "2026-06-30T10:15:00.000Z",
+      "transaction_id": "tx_m3n4o5p6",
+      "service": "bridge-coordinator",
+      "environment": "production",
+      "error_payload": {
+        "component": "health-monitor",
+        "http_status": 503,
+        "error_code": "ERR_BRIDGE_SERVICE_UNAVAILABLE",
+        "message": "Cross-chain bridge is not responding. All transfers are blocked.",
+        "health_check": {
+          "endpoint": "http://bridge.internal/health",
+          "last_success_ago_seconds": 312,
+          "consecutive_failures": 8
+        },
+        "network_details": {
+          "target_host": "bridge.internal",
+          "latency_ms": 5000,
+          "retries_attempted": 8
+        },
+        "raw_trace": "dial tcp bridge.internal:8080: connect: connection refused"
+      }
+    }
+  },
+  {
+    "note": "ERR_NONCE_MISMATCH · MEDIUM",
+    "payload": {
+      "timestamp": "2026-06-30T10:20:00.000Z",
+      "transaction_id": "tx_q7r8s9t0",
+      "service": "tx-manager",
+      "environment": "production",
+      "error_payload": {
+        "component": "submission-service",
+        "http_status": 400,
+        "error_code": "ERR_NONCE_MISMATCH",
+        "message": "Transaction rejected: submitted nonce does not match expected nonce for sender.",
+        "tx_details": {
+          "sender": "0x71C7656EC7ab88b098defB751B7401B5f6d8976F",
+          "submitted_nonce": 142,
+          "expected_nonce": 147
+        },
+        "network_details": {
+          "target_host": "tx-manager.internal",
+          "latency_ms": 45,
+          "retries_attempted": 1
+        },
+        "raw_trace": "Error: nonce too low: have 147, got 142 at core/tx_pool.go:604"
+      }
+    }
+  },
+  {
+    "note": "ERR_GAS_LIMIT_EXCEEDED · LOW",
+    "payload": {
+      "timestamp": "2026-06-30T10:25:00.000Z",
+      "transaction_id": "tx_u1v2w3x4",
+      "service": "contract-executor",
+      "environment": "staging",
+      "error_payload": {
+        "component": "evm-runtime",
+        "http_status": 200,
+        "error_code": "ERR_GAS_LIMIT_EXCEEDED",
+        "message": "Transaction reverted: execution ran out of gas before completing.",
+        "gas_details": {
+          "gas_limit_set": 80000,
+          "gas_consumed": 80000,
+          "gas_estimated": 112000
+        },
+        "network_details": {
+          "target_host": "evm-runtime.internal",
+          "latency_ms": 30,
+          "retries_attempted": 0
+        },
+        "raw_trace": "Error: out of gas at evm/interpreter.go:221"
+      }
+    }
+  },
+  {
+    "note": "ERR_MEMPOOL_CONGESTION · HIGH",
+    "payload": {
+      "timestamp": "2026-06-30T10:30:00.000Z",
+      "transaction_id": "tx_y5z6a7b8",
+      "service": "tx-submitter",
+      "environment": "production",
+      "error_payload": {
+        "component": "mempool-monitor",
+        "http_status": 429,
+        "error_code": "ERR_MEMPOOL_CONGESTION",
+        "message": "Node mempool at maximum capacity. New transactions are being rejected.",
+        "mempool_details": {
+          "current_size": 5000,
+          "max_size": 5000,
+          "pending_tx_count": 4998,
+          "min_gas_price_gwei": 120
+        },
+        "network_details": {
+          "target_host": "tx-submitter.internal",
+          "latency_ms": 200,
+          "retries_attempted": 2
+        },
+        "raw_trace": "Error: mempool is full at p2p/tx_handler.go:89"
+      }
+    }
+  },
+  {
+    "note": "ERR_RELAYER_STUCK · HIGH",
+    "payload": {
+      "timestamp": "2026-06-30T10:35:00.000Z",
+      "transaction_id": "tx_c9d0e1f2",
+      "service": "cross-chain-relayer",
+      "environment": "production",
+      "error_payload": {
+        "component": "event-processor",
+        "http_status": 500,
+        "error_code": "ERR_RELAYER_STUCK",
+        "message": "Message relayer has stopped forwarding cross-chain events.",
+        "relayer_details": {
+          "last_processed_event": "0x9f3a...",
+          "queue_backlog": 214,
+          "stuck_since_minutes": 18,
+          "signing_wallet_balance_eth": "0.003"
+        },
+        "network_details": {
+          "target_host": "cross-chain-relayer.internal",
+          "latency_ms": 60,
+          "retries_attempted": 0
+        },
+        "raw_trace": "fatal: relayer goroutine deadlocked at relayer/processor.go:193"
+      }
+    }
+  },
+  {
+    "note": "ERR_BLOCK_FINALITY_TIMEOUT · MEDIUM",
+    "payload": {
+      "timestamp": "2026-06-30T10:40:00.000Z",
+      "transaction_id": "tx_g3h4i5j6",
+      "service": "settlement-service",
+      "environment": "production",
+      "error_payload": {
+        "component": "confirmation-tracker",
+        "http_status": 408,
+        "error_code": "ERR_BLOCK_FINALITY_TIMEOUT",
+        "message": "Transaction did not reach finality within expected confirmation window.",
+        "finality_details": {
+          "tx_hash": "0x4e2b8c...",
+          "blocks_waited": 120,
+          "required_confirmations": 12,
+          "current_confirmations": 0
+        },
+        "network_details": {
+          "target_host": "settlement-service.internal",
+          "latency_ms": 90,
+          "retries_attempted": 0
+        },
+        "raw_trace": "Timeout: tx 0x4e2b8c not confirmed after 120 blocks"
+      }
+    }
+  },
+  {
+    "note": "ERR_CONSENSUS_ROUND_FAILURE · CRITICAL",
+    "payload": {
+      "timestamp": "2026-06-30T10:45:00.000Z",
+      "transaction_id": "tx_k7l8m9n0",
+      "service": "validator-node",
+      "environment": "production",
+      "error_payload": {
+        "component": "consensus-engine",
+        "http_status": 500,
+        "error_code": "ERR_CONSENSUS_ROUND_FAILURE",
+        "message": "Consensus layer failed to reach agreement within round timeout. Block production halted.",
+        "consensus_details": {
+          "round": 8812,
+          "timeout_seconds": 10,
+          "validators_total": 21,
+          "validators_unreachable": 8
+        },
+        "network_details": {
+          "target_host": "validator-node.internal",
+          "latency_ms": 500,
+          "retries_attempted": 3
+        },
+        "raw_trace": "FATAL: consensus timeout on round 8812 — insufficient quorum"
+      }
+    }
+  }
+]

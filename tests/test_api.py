@@ -84,6 +84,22 @@ def test_ingest_knowledge_base(client):
     assert response.json()["inserted_count"] == 1
 
 
+def test_list_knowledge_base(client):
+    mock_vector_store = client.app.dependency_overrides[get_vector_store]()
+    mock_vector_store.list_entries.return_value = [
+        {
+            "error_code": "CW_ERR_TEST",
+            "risk_level": "LOW",
+            "document": "Error Code: CW_ERR_TEST. ...",
+        }
+    ]
+    response = client.get("/api/v1/knowledge-base")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["count"] == 1
+    assert data["entries"][0]["error_code"] == "CW_ERR_TEST"
+
+
 def test_health_check(client):
     response = client.get("/health")
     assert response.status_code == 200

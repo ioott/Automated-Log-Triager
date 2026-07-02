@@ -2,6 +2,8 @@
 
 [English](#english-version) | [Português](#versão-em-português)
 
+📺 **[Watch the demo video](docs/demo.mp4)** · **[Assista ao vídeo de demonstração](docs/demo.mp4)**
+
 ---
 
 ## English Version
@@ -56,6 +58,9 @@ To deploy, connect your GitHub repository to the platform and configure the depl
 ### Future Improvements
 - Search diagnosed reports (`/api/v1/reports`) by `transaction_id`, `error_code`, or free-text keyword instead of only returning the latest ones.
 - Search Known Error Manual entries (`/api/v1/knowledge-base`) by `error_code` or free-text keyword, complementing the existing full-list endpoint.
+
+---
+📺 **[Watch the demo video](docs/demo.mp4)** ·
 
 ---
 
@@ -113,4 +118,4 @@ Para fazer o deploy, conecte seu repositório GitHub à plataforma e configure o
 - Buscar entradas do Manual de Erros Conhecidos (`/api/v1/knowledge-base`) por `error_code` ou palavra-chave livre, complementando o endpoint de listagem completa já existente.
 
 ---
-*Placeholder: [Assista ao Vídeo de Demonstração Aqui]*
+**[Assista ao vídeo de demonstração](docs/demo.mp4)**

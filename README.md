@@ -55,6 +55,17 @@ PYTHONPATH=. pytest -v
 This project is containerized and ready for PaaS platforms like **Render** or **Railway**.
 To deploy, connect your GitHub repository to the platform and configure the deploy script to use the included `Dockerfile`. Ensure all environment variables (e.g., `GOOGLE_API_KEY`) are set in the platform settings.
 
+
+#### Security Note: ChromaDB Authentication
+
+In this deployment, the ChromaDB service runs on Render's **Free** instance type and is reachable at its public `.onrender.com` URL (Free instances cannot receive private-network traffic, so Render's internal networking isn't an option without upgrading to a paid plan).
+
+We initially tried to protect that public endpoint with Chroma's built-in static token authentication (`CHROMA_SERVER_AUTHN_PROVIDER` / `CHROMA_SERVER_AUTHN_CREDENTIALS`), documented at [docs.trychroma.com](https://docs.trychroma.com). After deploying, we verified with `curl` that requests **without** a token and with a **wrong** token both still returned `200 OK` - the auth provider was not being enforced. This turned out to be a known, currently open upstream bug in the official Docker image: [chroma-core/chroma#4288](https://github.com/chroma-core/chroma/issues/4288). Pinning to a specific stable tag (`1.5.9`, instead of `latest`) did not change the outcome.
+
+Given that, we made a deliberate call: keep the Free tier and the public URL, without relying on a broken auth mechanism to create a false sense of security. The `known_errors` collection stores the Known Error Manual (technical remediation entries), not customer or transaction data, so the exposure is judged acceptable for a portfolio deployment.
+
+**For a production deployment**, the recommended fix is to move ChromaDB to Render's **Starter** plan (or higher) and use its private network URL instead of the public one - private-network traffic never touches the public internet, so this sidesteps the broken env-var auth entirely. See [Render's private network docs](https://render.com/docs/private-network) for details.
+
 ### Future Improvements
 - Search diagnosed reports (`/api/v1/reports`) by `transaction_id`, `error_code`, or free-text keyword instead of only returning the latest ones.
 - Search Known Error Manual entries (`/api/v1/knowledge-base`) by `error_code` or free-text keyword, complementing the existing full-list endpoint.
@@ -112,6 +123,17 @@ PYTHONPATH=. pytest -v
 ### Deploy
 Este projeto é containerizado e está pronto para plataformas PaaS como **Render** ou **Railway**.
 Para fazer o deploy, conecte seu repositório GitHub à plataforma e configure o script de deploy para usar o `Dockerfile` incluso. Certifique-se de que todas as variáveis de ambiente (ex: `GOOGLE_API_KEY`) estejam configuradas no painel da plataforma.
+
+
+#### Nota de Seguranca: Autenticacao do ChromaDB
+
+Nesta implantacao, o servico do ChromaDB roda no plano **Free** do Render e e acessado pela sua URL publica `.onrender.com` (instancias Free nao conseguem receber trafego pela rede privada, entao a rede interna do Render nao e uma opcao sem migrar para um plano pago).
+
+Inicialmente tentamos proteger esse endpoint publico com a autenticacao por token estatico nativa do Chroma (`CHROMA_SERVER_AUTHN_PROVIDER` / `CHROMA_SERVER_AUTHN_CREDENTIALS`), documentada em [docs.trychroma.com](https://docs.trychroma.com). Depois do deploy, confirmamos via `curl` que requisicoes **sem** token e com um token **errado** continuavam retornando `200 OK` - o provider de autenticacao nao estava sendo aplicado. Isso e um bug conhecido e atualmente aberto na imagem Docker oficial: [chroma-core/chroma#4288](https://github.com/chroma-core/chroma/issues/4288). Fixar uma tag estavel especifica (`1.5.9`, em vez de `latest`) nao mudou o resultado.
+
+Diante disso, tomamos uma decisao deliberada: manter o plano Free e a URL publica, sem depender de um mecanismo de autenticacao quebrado que criaria uma falsa sensacao de seguranca. A collection `known_errors` guarda o Manual de Erros Conhecidos (entradas tecnicas de remediacao), nao dados de clientes ou de transacoes, entao a exposicao foi julgada aceitavel para uma implantacao de portfolio.
+
+**Para uma implantacao em producao**, a correcao recomendada e migrar o ChromaDB para o plano **Starter** do Render (ou superior) e usar a URL de rede privada em vez da publica - trafego de rede privada nunca passa pela internet publica, entao isso contorna completamente o bug de autenticacao por env var. Veja a [documentacao de rede privada do Render](https://render.com/docs/private-network) para mais detalhes.
 
 ### Melhorias Futuras
 - Buscar relatórios diagnosticados (`/api/v1/reports`) por `transaction_id`, `error_code` ou palavra-chave livre, em vez de retornar apenas os mais recentes.

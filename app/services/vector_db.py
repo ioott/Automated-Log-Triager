@@ -41,6 +41,14 @@ class VectorStore:
             logger.error(f"Failed to connect to ChromaDB: {e}")
             raise Exception("ChromaDB collection could not be initialized.")
 
+    def count_entries(self) -> int:
+        """
+        Returns the number of entries currently stored in the knowledge
+        base collection, without fetching the documents themselves.
+        """
+        collection = self._get_collection()
+        return collection.count()
+
     def ingest_entries(self, entries: List[KnownErrorManualEntry]) -> int:
         """
         Ingests a batch of KnownErrorManualEntry objects into the Vector Database.

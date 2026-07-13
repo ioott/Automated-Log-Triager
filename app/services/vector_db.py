@@ -2,7 +2,6 @@ import chromadb
 import logging
 from urllib.parse import urlparse
 from typing import List
-from chromadb.config import Settings as ChromaClientSettings
 from app.core.config import settings
 from app.models.schemas import KnownErrorManualEntry
 
@@ -34,25 +33,7 @@ class VectorStore:
             # dev port (8000) when neither the URL nor the scheme implies one.
             port = parsed.port or (443 if use_ssl else 8000)
 
-            chroma_client_kwargs = {
-                "host": host,
-                "port": port,
-                "ssl": use_ssl,
-            }
-
-            # Only attach auth credentials if a token was configured. This
-            # keeps local docker-compose (no auth) working unchanged, while
-            # supporting a Chroma instance protected with
-            # CHROMA_SERVER_AUTHN_PROVIDER / CHROMA_SERVER_AUTHN_CREDENTIALS
-            # (e.g. when Chroma is reachable only via a public URL).
-            if settings.CHROMA_AUTH_TOKEN:
-                chroma_client_kwargs["settings"] = ChromaClientSettings(
-                    chroma_client_auth_provider="chromadb.auth.token_authn.TokenAuthClientProvider",
-                    chroma_client_auth_credentials=settings.CHROMA_AUTH_TOKEN,
-                    chroma_auth_token_transport_header="Authorization",
-                )
-
-            self._client = chromadb.HttpClient(**chroma_client_kwargs)
+            self._client = chromadb.HttpClient(host=host, port=port, ssl=use_ssl)
             self._collection = self._client.get_or_create_collection(name="known_errors")
             logger.info("Successfully connected to ChromaDB and initialized 'known_errors' collection.")
             return self._collection

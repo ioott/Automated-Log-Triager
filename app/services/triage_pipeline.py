@@ -3,7 +3,7 @@ from app.models.schemas import IncomingLogPayload
 from app.services import masking, storage
 from app.services.vector_db import VectorStore
 from app.services.agents import DiagnosticAgent
-from app.core.exceptions import sanitize_error_message
+from app.core.exceptions import classify_error
 from app.core.seed_data import ensure_seeded
 
 logger = logging.getLogger(__name__)
@@ -79,16 +79,20 @@ class TriagePipelineService:
                 f"PIPELINE FAILURE for {transaction_id}: {str(e)}",
                 exc_info=True,
             )
-            # ...but only ever store/display a short, sanitized message.
+            # ...but only ever store/display a short, classified message.
             # Upstream HTTP clients (notably ChromaDB's, when the
             # free-tier instance is asleep) can surface a raw HTML error
             # page as the exception text, which would otherwise get
-            # rendered verbatim in the dashboard.
+            # rendered verbatim in the dashboard. `error_type` lets the
+            # frontend explain *why* it failed and decide whether to
+            # auto-retry (see classify_error's docstring).
+            classification = classify_error(e)
             failed_report = {
                 "transaction_id": transaction_id,
                 "status": "[AI_DIAGNOSIS_FAILED]",
                 "raw_payload": payload.model_dump(),
-                "error": sanitize_error_message(e),
+                "error": classification["message"],
+                "error_type": classification["type"],
                 "timestamp": payload.timestamp.isoformat(),
             }
             storage.add_report(failed_report)

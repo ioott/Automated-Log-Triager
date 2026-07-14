@@ -6,8 +6,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from app.core.config import settings
 from app.core.exceptions import global_exception_handler
-from app.core.seed_data import KNOWN_ERROR_ENTRIES
-from app.models.schemas import KnownErrorManualEntry
+from app.core.seed_data import ensure_seeded
 from app.services.vector_db import VectorStore
 from app.services.triage_pipeline import TriagePipelineService
 from app.api import logs, knowledge_base, reports
@@ -23,34 +22,6 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def _auto_seed_if_empty(vector_store: VectorStore) -> None:
-    """
-    Populates the knowledge base on startup if it's empty.
-
-    The ChromaDB deployment backing this app runs on a free, ephemeral
-    instance with no persistent disk, so the collection is wiped on every
-    restart (including automatic spin-downs from inactivity). Without this,
-    the RAG pipeline would silently run against an empty knowledge base
-    until someone remembered to run scripts/seed.py by hand.
-
-    This only writes data when the collection is empty, so it's safe to
-    run on every startup - it will never duplicate entries once seeded.
-    """
-    try:
-        if vector_store.count_entries() > 0:
-            logger.info("Knowledge base already populated; skipping auto-seed.")
-            return
-
-        entries = [KnownErrorManualEntry(**e) for e in KNOWN_ERROR_ENTRIES]
-        inserted = vector_store.ingest_entries(entries)
-        logger.info(f"Knowledge base was empty; auto-seeded {inserted} entries.")
-    except Exception as e:
-        # Don't crash the whole app if ChromaDB isn't reachable yet at
-        # startup - the app already treats the vector store as a lazily
-        # connected dependency (see /health), so we log and move on.
-        logger.error(f"Auto-seed check failed, continuing startup without seeding: {e}")
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     app.state.vector_store = VectorStore()
@@ -58,7 +29,10 @@ async def lifespan(app: FastAPI):
         vector_store=app.state.vector_store
     )
 
-    _auto_seed_if_empty(app.state.vector_store)
+    # Best-effort: also re-checked before every triage request, since
+    # ChromaDB (no persistent disk) can lose its data on its own restart
+    # cycle independently of this process. See app/core/seed_data.py.
+    ensure_seeded(app.state.vector_store)
 
     yield
 

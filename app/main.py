@@ -6,18 +6,13 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from app.core.config import settings
 from app.core.exceptions import global_exception_handler
+from app.core.logging_config import configure_logging
 from app.core.seed_data import ensure_seeded
 from app.services.vector_db import VectorStore
 from app.services.triage_pipeline import TriagePipelineService
 from app.api import logs, knowledge_base, reports
 
-logging.basicConfig(
-    level=logging.INFO,
-    format=(
-        '{"time": "%(asctime)s", "level": "%(levelname)s",'
-        ' "message": "%(message)s"}'
-    ),
-)
+configure_logging(logging.INFO)
 
 logger = logging.getLogger(__name__)
 

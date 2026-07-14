@@ -1,12 +1,26 @@
 """
-Single source of truth for the Known Error Manual seed entries.
+Single source of truth for the Known Error Manual seed entries, plus a
+reusable `ensure_seeded()` helper for auto-populating the ChromaDB
+collection when it's empty.
 
 Shared by:
 - scripts/seed.py (manual/local seeding via HTTP against a running instance)
-- app/main.py (automatic startup seeding when the ChromaDB collection is empty)
+- app/main.py (seeds on API startup)
+- app/services/triage_pipeline.py (seeds again before every RAG lookup)
 
-Keeping the data in one place avoids the two seeding paths drifting apart.
+Why call it from both places: the ChromaDB deployment behind this app has
+no persistent disk, so its data is wiped whenever ITS OWN instance
+restarts (e.g. a free-tier spin-down from inactivity) - independently of
+whether this API process has restarted. A startup-only check here isn't
+enough, since the two services' restart cycles aren't in sync. Calling
+`ensure_seeded()` before each RAG lookup keeps the collection populated
+regardless of which service last restarted; it's cheap when there's
+nothing to do (a single `count()` call).
 """
+
+import logging
+
+logger = logging.getLogger(__name__)
 
 KNOWN_ERROR_ENTRIES = [
     {
@@ -194,3 +208,33 @@ KNOWN_ERROR_ENTRIES = [
         "risk_level": "CRITICAL",
     },
 ]
+
+
+def ensure_seeded(vector_store) -> bool:
+    """
+    Ensures the `known_errors` collection has data, seeding it from
+    KNOWN_ERROR_ENTRIES if it's currently empty.
+
+    Safe to call frequently (e.g. on every triage request): the emptiness
+    check is a single cheap `count()` call, and ingestion only runs when
+    the count is actually zero, so a fully-seeded collection costs one
+    extra round-trip and nothing else.
+
+    Returns True if seeding was performed, False if the collection
+    already had data or the check/seed itself failed (failures are
+    logged, not raised, so a transient ChromaDB hiccup here doesn't take
+    down the caller).
+    """
+    from app.models.schemas import KnownErrorManualEntry
+
+    try:
+        if vector_store.count_entries() > 0:
+            return False
+
+        entries = [KnownErrorManualEntry(**e) for e in KNOWN_ERROR_ENTRIES]
+        inserted = vector_store.ingest_entries(entries)
+        logger.info(f"Knowledge base was empty; auto-seeded {inserted} entries.")
+        return True
+    except Exception as e:
+        logger.error(f"Auto-seed check failed, continuing without seeding: {e}")
+        return False

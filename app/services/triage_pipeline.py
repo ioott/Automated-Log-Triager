@@ -3,6 +3,7 @@ from app.models.schemas import IncomingLogPayload
 from app.services import masking, storage
 from app.services.vector_db import VectorStore
 from app.services.agents import DiagnosticAgent
+from app.core.exceptions import sanitize_error_message
 
 logger = logging.getLogger(__name__)
 
@@ -65,15 +66,21 @@ class TriagePipelineService:
             return final_report
 
         except Exception as e:
+            # Log the full, untouched exception for debugging...
             logger.error(
                 f"PIPELINE FAILURE for {transaction_id}: {str(e)}",
                 exc_info=True,
             )
+            # ...but only ever store/display a short, sanitized message.
+            # Upstream HTTP clients (notably ChromaDB's, when the
+            # free-tier instance is asleep) can surface a raw HTML error
+            # page as the exception text, which would otherwise get
+            # rendered verbatim in the dashboard.
             failed_report = {
                 "transaction_id": transaction_id,
                 "status": "[AI_DIAGNOSIS_FAILED]",
                 "raw_payload": payload.model_dump(),
-                "error": str(e),
+                "error": sanitize_error_message(e),
                 "timestamp": payload.timestamp.isoformat(),
             }
             storage.add_report(failed_report)

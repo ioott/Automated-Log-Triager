@@ -247,6 +247,16 @@
         return "NONE";
     }
 
+    function escapeHtml(str) {
+        if (str == null) return "";
+        return String(str)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+
     function renderReport(r) {
         const rc = riskClass(r.diagnosis?.risk_assessment);
         if (r.status !== "DIAGNOSED") {
@@ -257,7 +267,7 @@
                   <h5 class="mb-0">Tx ID: ${r.transaction_id}</h5>
                   <span class="badge bg-danger">FAILED</span>
                 </div>
-                <div class="alert alert-warning mb-0">${r.error}</div>
+                <div class="alert alert-warning mb-0">${escapeHtml(r.error)}</div>
               </div>
             </div>`;
         }

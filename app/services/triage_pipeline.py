@@ -4,6 +4,7 @@ from app.services import masking, storage
 from app.services.vector_db import VectorStore
 from app.services.agents import DiagnosticAgent
 from app.core.exceptions import sanitize_error_message
+from app.core.seed_data import ensure_seeded
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +26,12 @@ class TriagePipelineService:
             masked_log = masking.mask_log(payload.model_dump())
             logger.info(f"Log masked successfully for {transaction_id}")
 
+            # ChromaDB has no persistent disk and can lose its data on its
+            # own restart cycle, independent of this process. Re-check
+            # before every RAG lookup rather than relying solely on the
+            # startup seed (see app/core/seed_data.py for why).
+            ensure_seeded(self.vector_store)
+
             query = (
                 f"{payload.error_payload.error_code} "
                 f"{payload.error_payload.message}"
@@ -32,10 +39,11 @@ class TriagePipelineService:
             rag_results = self.vector_store.search_similar_errors(query)
 
             rag_context = "No direct match found in Knowledge Base."
-            if rag_results and rag_results["documents"]:
-                rag_context = rag_results["documents"][0][0]
+            documents = (rag_results or {}).get("documents") or []
+            if documents and documents[0]:
+                rag_context = documents[0][0]
                 metadatas = rag_results.get("metadatas") or [[]]
-                if metadatas[0]:
+                if metadatas and metadatas[0]:
                     known_risk_level = metadatas[0][0].get("risk_level")
                     if known_risk_level:
                         rag_context += (

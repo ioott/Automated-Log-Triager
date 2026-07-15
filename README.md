@@ -19,7 +19,7 @@ This project is built from scratch following **Clean Architecture**, **Domain-Dr
 - **Data Validation:** Pydantic v2
 - **Testing:** Pytest
 - **Containerization:** Docker & Docker Compose
-- **Integrations:** ChromaDB (RAG), LangChain (LLM Orchestration)
+- **Integrations:** ChromaDB (RAG), LangChain (LLM Orchestration), Tenacity (retry/backoff)
 - **LLM Engine:** Google Gemini (Generative AI)
 
 #### System Design
@@ -66,6 +66,15 @@ Given that, we made a deliberate call: keep the Free tier and the public URL, wi
 
 **For a production deployment**, the recommended fix is to move ChromaDB to Render's **Starter** plan (or higher) and use its private network URL instead of the public one - private-network traffic never touches the public internet, so this sidesteps the broken env-var auth entirely. See [Render's private network docs](https://render.com/docs/private-network) for details.
 
+#### Resilience Note: ChromaDB Cold Starts
+
+Both services here run on Render's **Free** tier, which spins down after ~15 minutes of inactivity and has no persistent disk. That combination surfaces in two ways worth documenting:
+
+- **The knowledge base gets wiped on every ChromaDB restart.** Since there's no persistent disk, the `known_errors` collection is empty every time the ChromaDB container comes back up - independently of whether the API process itself restarted. `ensure_seeded()` (`app/core/seed_data.py`) re-checks and re-populates the collection both on API startup and before every triage request, so a freshly-restarted ChromaDB instance gets transparently reseeded instead of silently returning "no match" from RAG.
+- **Cold starts can take longer than they look like they should.** Waking a sleeping Free instance means Render provisioning a container (~30-50s) *plus* Chroma re-downloading and initializing its default embedding model from scratch, since nothing persists across restarts - in practice this can run well past a minute. `VectorStore._get_collection()` retries the connection with exponential backoff (up to 8 attempts, 2-15s apart, via `tenacity`) instead of failing on the first attempt, so a single triage request can ride out a cold start instead of every request in that window failing outright. If ChromaDB is still unreachable after that retry budget, the failure is classified as `dependency_unavailable` and surfaced on the dashboard as a plain-language "try again shortly" message instead of a raw exception string (see `classify_error()` in `app/core/exceptions.py`).
+
+For a production deployment, the fix that actually removes this class of issue is moving both services off the Free tier so they stop spinning down.
+
 ### Future Improvements
 - Search diagnosed reports (`/api/v1/reports`) by `transaction_id`, `error_code`, or free-text keyword instead of only returning the latest ones.
 - Search Known Error Manual entries (`/api/v1/knowledge-base`) by `error_code` or free-text keyword, complementing the existing full-list endpoint.
@@ -88,7 +97,7 @@ Este projeto foi desenvolvido do zero seguindo **Clean Architecture**, **Domain-
 - **Validação de Dados:** Pydantic v2
 - **Testes:** Pytest
 - **Containerização:** Docker & Docker Compose
-- **Integrações:** ChromaDB (RAG), LangChain (Orquestração de LLM)
+- **Integrações:** ChromaDB (RAG), LangChain (Orquestração de LLM), Tenacity (retry/backoff)
 - **Motor de IA:** Google Gemini (Generative AI)
 
 #### Design do Sistema
@@ -134,6 +143,15 @@ Inicialmente tentamos proteger esse endpoint publico com a autenticacao por toke
 Diante disso, tomamos uma decisao deliberada: manter o plano Free e a URL publica, sem depender de um mecanismo de autenticacao quebrado que criaria uma falsa sensacao de seguranca. A collection `known_errors` guarda o Manual de Erros Conhecidos (entradas tecnicas de remediacao), nao dados de clientes ou de transacoes, entao a exposicao foi julgada aceitavel para uma implantacao de portfolio.
 
 **Para uma implantacao em producao**, a correcao recomendada e migrar o ChromaDB para o plano **Starter** do Render (ou superior) e usar a URL de rede privada em vez da publica - trafego de rede privada nunca passa pela internet publica, entao isso contorna completamente o bug de autenticacao por env var. Veja a [documentacao de rede privada do Render](https://render.com/docs/private-network) para mais detalhes.
+
+#### Nota de Resiliência: Cold Starts do ChromaDB
+
+Os dois serviços aqui rodam no plano **Free** do Render, que hiberna após ~15 minutos de inatividade e não tem disco persistente. Essa combinação aparece de duas formas que vale documentar:
+
+- **A base de conhecimento é apagada a cada restart do ChromaDB.** Como não há disco persistente, a collection `known_errors` fica vazia toda vez que o container do ChromaDB volta - independente de o processo da API ter reiniciado ou não. O `ensure_seeded()` (`app/core/seed_data.py`) reverifica e repopula a collection tanto no startup da API quanto antes de cada requisição de triagem, então uma instância do ChromaDB recém-reiniciada é re-semeada de forma transparente em vez de simplesmente devolver "sem correspondência" no RAG.
+- **Cold starts podem demorar mais do que parecem.** Acordar uma instância Free adormecida significa o Render provisionar um container (~30-50s) *mais* o Chroma rebaixar e inicializar do zero seu modelo de embedding padrão, já que nada persiste entre reinícios - na prática isso pode passar bem de um minuto. `VectorStore._get_collection()` tenta reconectar com backoff exponencial (até 8 tentativas, de 2 a 15s entre elas, via `tenacity`) em vez de falhar na primeira tentativa, então uma única requisição de triagem consegue sobreviver a um cold start em vez de toda requisição naquela janela falhar direto. Se o ChromaDB continuar inacessível depois desse orçamento de tentativas, a falha é classificada como `dependency_unavailable` e exibida no dashboard como uma mensagem em linguagem simples pedindo pra tentar de novo, em vez do texto cru da exceção (veja `classify_error()` em `app/core/exceptions.py`).
+
+Para uma implantação em produção, a correção que de fato elimina essa classe de problema é tirar os dois serviços do plano Free, pra pararem de hibernar.
 
 ### Melhorias Futuras
 - Buscar relatórios diagnosticados (`/api/v1/reports`) por `transaction_id`, `error_code` ou palavra-chave livre, em vez de retornar apenas os mais recentes.

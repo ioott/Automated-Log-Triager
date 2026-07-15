@@ -13,6 +13,13 @@ The **Automated Log Triager & Diagnostic Agent** is a high-performance, asynchro
 
 This project is built from scratch following **Clean Architecture**, **Domain-Driven Design (DDD)**, and **SOLID principles**.
 
+### Live Demo
+This project is deployed and publicly accessible - no local setup required to try it:
+- **Dashboard:** [log-triager-api.onrender.com](https://log-triager-api.onrender.com/)
+- **Swagger docs:** [log-triager-api.onrender.com/docs](https://log-triager-api.onrender.com/docs)
+
+Both services run on Render's Free tier, so if nothing has hit them in a while, the first request can take up to a minute or two to wake up (see the Resilience Note below) - if the dashboard looks unresponsive at first, give it a moment.
+
 ### Architecture & Tech Stack
 - **API Framework:** FastAPI (100% Asynchronous)
 - **Language:** Python 3.10+
@@ -28,6 +35,7 @@ The system enforces strict decoupling between the transport layer (FastAPI), bus
 A critical component of this system is the **Data Masking Service**, which aggressively sanitizes Personally Identifiable Information (PII) and sensitive data (e.g., real IPs, emails, and transaction IDs) before payload delivery to the autonomous agents to ensure enterprise-grade security.
 
 ### How to Run Locally
+> The project is already live (see Live Demo above) - the steps below are only needed if you want to run it locally for development.
 
 #### Prerequisites
 - Docker & Docker Compose
@@ -91,6 +99,13 @@ O **Automated Log Triager & Diagnostic Agent** é um pipeline Python assíncrono
 
 Este projeto foi desenvolvido do zero seguindo **Clean Architecture**, **Domain-Driven Design (DDD)** e os **princípios SOLID**.
 
+### Demo ao Vivo
+Este projeto está implantado e é acessível publicamente - não é preciso rodar nada localmente pra testar:
+- **Dashboard:** [log-triager-api.onrender.com](https://log-triager-api.onrender.com/)
+- **Documentação Swagger:** [log-triager-api.onrender.com/docs](https://log-triager-api.onrender.com/docs)
+
+Os dois serviços rodam no plano Free do Render, então se ninguém acessou por um tempo, a primeira requisição pode levar até um ou dois minutos pra acordar (veja a Nota de Resiliência abaixo) - se o dashboard parecer sem resposta no início, dê um tempo.
+
 ### Arquitetura & Stack Tecnológica
 - **Framework de API:** FastAPI (100% Assíncrono)
 - **Linguagem:** Python 3.10+
@@ -106,6 +121,7 @@ O sistema impõe um desacoplamento estrito entre a camada de transporte (FastAPI
 Um componente crítico deste sistema é o **Data Masking Service** (Serviço de Mascaramento de Dados), que sanitiza agressivamente Informações de Identificação Pessoal (PII) e dados sensíveis (ex: IPs reais, e-mails e IDs de transação) antes da entrega do payload para os agentes autônomos, garantindo segurança de nível empresarial.
 
 ### Como Rodar Localmente
+> O projeto já está no ar (veja Demo ao Vivo acima) - os passos abaixo só são necessários se você quiser rodar localmente para desenvolvimento.
 
 #### Pré-requisitos
 - Docker & Docker Compose
@@ -134,15 +150,15 @@ Este projeto é containerizado e está pronto para plataformas PaaS como **Rende
 Para fazer o deploy, conecte seu repositório GitHub à plataforma e configure o script de deploy para usar o `Dockerfile` incluso. Certifique-se de que todas as variáveis de ambiente (ex: `GOOGLE_API_KEY`) estejam configuradas no painel da plataforma.
 
 
-#### Nota de Seguranca: Autenticacao do ChromaDB
+#### Nota de Segurança: Autenticação do ChromaDB
 
-Nesta implantacao, o servico do ChromaDB roda no plano **Free** do Render e e acessado pela sua URL publica `.onrender.com` (instancias Free nao conseguem receber trafego pela rede privada, entao a rede interna do Render nao e uma opcao sem migrar para um plano pago).
+Nesta implantação, o serviço do ChromaDB roda no plano **Free** do Render e é acessado pela sua URL pública `.onrender.com` (instâncias Free não conseguem receber tráfego pela rede privada, então a rede interna do Render não é uma opção sem migrar para um plano pago).
 
-Inicialmente tentamos proteger esse endpoint publico com a autenticacao por token estatico nativa do Chroma (`CHROMA_SERVER_AUTHN_PROVIDER` / `CHROMA_SERVER_AUTHN_CREDENTIALS`), documentada em [docs.trychroma.com](https://docs.trychroma.com). Depois do deploy, confirmamos via `curl` que requisicoes **sem** token e com um token **errado** continuavam retornando `200 OK` - o provider de autenticacao nao estava sendo aplicado. Isso e um bug conhecido e atualmente aberto na imagem Docker oficial: [chroma-core/chroma#4288](https://github.com/chroma-core/chroma/issues/4288). Fixar uma tag estavel especifica (`1.5.9`, em vez de `latest`) nao mudou o resultado.
+Inicialmente tentamos proteger esse endpoint público com a autenticação por token estático nativa do Chroma (`CHROMA_SERVER_AUTHN_PROVIDER` / `CHROMA_SERVER_AUTHN_CREDENTIALS`), documentada em [docs.trychroma.com](https://docs.trychroma.com). Depois do deploy, confirmamos via `curl` que requisições **sem** token e com um token **errado** continuavam retornando `200 OK` - o provider de autenticação não estava sendo aplicado. Isso é um bug conhecido e atualmente aberto na imagem Docker oficial: [chroma-core/chroma#4288](https://github.com/chroma-core/chroma/issues/4288). Fixar uma tag estável específica (`1.5.9`, em vez de `latest`) não mudou o resultado.
 
-Diante disso, tomamos uma decisao deliberada: manter o plano Free e a URL publica, sem depender de um mecanismo de autenticacao quebrado que criaria uma falsa sensacao de seguranca. A collection `known_errors` guarda o Manual de Erros Conhecidos (entradas tecnicas de remediacao), nao dados de clientes ou de transacoes, entao a exposicao foi julgada aceitavel para uma implantacao de portfolio.
+Diante disso, tomamos uma decisão deliberada: manter o plano Free e a URL pública, sem depender de um mecanismo de autenticação quebrado que criaria uma falsa sensação de segurança. A collection `known_errors` guarda o Manual de Erros Conhecidos (entradas técnicas de remediação), não dados de clientes ou de transações, então a exposição foi julgada aceitável para uma implantação de portfólio.
 
-**Para uma implantacao em producao**, a correcao recomendada e migrar o ChromaDB para o plano **Starter** do Render (ou superior) e usar a URL de rede privada em vez da publica - trafego de rede privada nunca passa pela internet publica, entao isso contorna completamente o bug de autenticacao por env var. Veja a [documentacao de rede privada do Render](https://render.com/docs/private-network) para mais detalhes.
+**Para uma implantação em produção**, a correção recomendada é migrar o ChromaDB para o plano **Starter** do Render (ou superior) e usar a URL de rede privada em vez da pública - tráfego de rede privada nunca passa pela internet pública, então isso contorna completamente o bug de autenticação por env var. Veja a [documentação de rede privada do Render](https://render.com/docs/private-network) para mais detalhes.
 
 #### Nota de Resiliência: Cold Starts do ChromaDB
 

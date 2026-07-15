@@ -257,6 +257,29 @@
             .replace(/'/g, "&#039;");
     }
 
+    // Tracks the in-progress "Wake up ChromaDB" action so the 3s polling
+    // loop in fetchLatest() doesn't stomp its UI mid-request.
+    // null | "waking" | "ready" | "still-down"
+    let wakeState = null;
+
+    function renderWakeControl(r) {
+        if (r.error_type !== "dependency_unavailable") return "";
+        if (wakeState === "waking") {
+            return `
+            <div class="d-flex align-items-center gap-2 mt-2">
+              <div class="spinner-border spinner-border-sm text-secondary" role="status"></div>
+              <span class="text-muted small">Waking up ChromaDB… this can take a couple of minutes on the free tier.</span>
+            </div>`;
+        }
+        if (wakeState === "ready") {
+            return `<div class="alert alert-success py-2 mb-0 mt-2 small">ChromaDB is up — try sending your log again.</div>`;
+        }
+        if (wakeState === "still-down") {
+            return `<div class="alert alert-secondary py-2 mb-0 mt-2 small">Still not responding. Wait a bit and try again.</div>`;
+        }
+        return `<button class="btn btn-sm btn-outline-dark mt-2" onclick="wakeChromaDB()">Wake up ChromaDB</button>`;
+    }
+
     function renderReport(r) {
         const rc = riskClass(r.diagnosis?.risk_assessment);
         if (r.status !== "DIAGNOSED") {
@@ -268,6 +291,7 @@
                   <span class="badge bg-danger">FAILED</span>
                 </div>
                 <div class="alert alert-warning mb-0">${escapeHtml(r.error)}</div>
+                ${renderWakeControl(r)}
               </div>
             </div>`;
         }
@@ -325,6 +349,10 @@
     }
 
     async function fetchLatest() {
+        // Don't let the 3s poll overwrite the in-progress "waking up"
+        // state/spinner rendered by wakeChromaDB() below.
+        if (wakeState === "waking") return;
+
         const res = await fetch("/api/v1/reports");
         const reports = await res.json();
         const latest = reports[0];
@@ -345,6 +373,31 @@
                 ? renderReport(latest)
                 : "<p class='text-muted'>No reports yet.</p>";
         }
+    }
+
+    // Manually pings /health, which exercises the same ChromaDB connection
+    // (with retry/backoff) the triage pipeline uses. On success, the
+    // VectorStore singleton caches the live connection server-side, so the
+    // next triage submission skips the reconnect dance entirely. This is
+    // an on-demand alternative to polling the services on a schedule just
+    // to keep them warm - it only does any work when a user actually hits
+    // a dependency_unavailable failure and asks for it.
+    async function wakeChromaDB() {
+        wakeState = "waking";
+        const container = document.getElementById("report-container");
+        const reports = await (await fetch("/api/v1/reports")).json();
+        if (reports[0]) container.innerHTML = renderReport(reports[0]);
+
+        try {
+            const res = await fetch("/health");
+            const data = await res.json();
+            wakeState = data?.dependencies?.chromadb === "ok" ? "ready" : "still-down";
+        } catch {
+            wakeState = "still-down";
+        }
+
+        const latestReports = await (await fetch("/api/v1/reports")).json();
+        if (latestReports[0]) container.innerHTML = renderReport(latestReports[0]);
     }
 
     function clearLog() {

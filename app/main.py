@@ -68,10 +68,22 @@ async def dashboard(request: Request):
 
 @app.get("/health")
 async def health_check(request: Request):
-    """Liveness and dependency probe."""
+    """Liveness and dependency probe.
+
+    Runs a real similarity query (not just get_or_create_collection) so
+    this genuinely exercises the same path a triage request takes,
+    including ChromaDB's embedding function. A bare connection can
+    succeed - and did, in practice - while an actual query still fails on
+    a cold instance that hasn't finished loading its embedding model yet;
+    checking only the connection made this endpoint (and the dashboard's
+    "Wake up ChromaDB" button, which polls it) report "ok" before triage
+    requests could reliably go through.
+    """
     db_status = "ok"
     try:
-        request.app.state.vector_store._get_collection()
+        vector_store = request.app.state.vector_store
+        ensure_seeded(vector_store)
+        vector_store.search_similar_errors("health check", n_results=1)
     except Exception:
         db_status = "unavailable"
     overall = "ok" if db_status == "ok" else "degraded"

@@ -266,18 +266,27 @@
         if (r.error_type !== "dependency_unavailable") return "";
         if (wakeState === "waking") {
             return `
-            <div class="d-flex align-items-center gap-2 mt-2">
-              <div class="spinner-border spinner-border-sm text-secondary" role="status"></div>
-              <span class="text-muted small">Waking up ChromaDB… this can take a couple of minutes on the free tier.</span>
+            <div class="d-flex align-items-center gap-2 mt-2 p-2 bg-warning bg-opacity-25 rounded">
+              <div class="spinner-border spinner-border-sm text-warning" role="status"></div>
+              <span class="fw-bold small">Waking up ChromaDB… this can take a couple of minutes on the free tier.</span>
             </div>`;
         }
         if (wakeState === "ready") {
-            return `<div class="alert alert-success py-2 mb-0 mt-2 small">ChromaDB is up — try sending your log again.</div>`;
+            return `<div class="alert alert-success py-2 mb-0 mt-2 small fw-bold">✅ ChromaDB responded to a real test query — try sending your log again.</div>`;
         }
         if (wakeState === "still-down") {
-            return `<div class="alert alert-secondary py-2 mb-0 mt-2 small">Still not responding. Wait a bit and try again.</div>`;
+            return `
+            <div class="alert alert-secondary py-2 mb-2 mt-2 small">
+              Still not responding to a real query. Wait a bit and try again.
+            </div>
+            <button class="btn btn-warning fw-bold w-100" onclick="wakeChromaDB()">
+              ⚡ Wake up ChromaDB
+            </button>`;
         }
-        return `<button class="btn btn-sm btn-outline-dark mt-2" onclick="wakeChromaDB()">Wake up ChromaDB</button>`;
+        return `
+        <button class="btn btn-warning fw-bold w-100 mt-2" onclick="wakeChromaDB()">
+          ⚡ Wake up ChromaDB
+        </button>`;
     }
 
     function renderReport(r) {
@@ -375,13 +384,18 @@
         }
     }
 
-    // Manually pings /health, which exercises the same ChromaDB connection
-    // (with retry/backoff) the triage pipeline uses. On success, the
-    // VectorStore singleton caches the live connection server-side, so the
-    // next triage submission skips the reconnect dance entirely. This is
-    // an on-demand alternative to polling the services on a schedule just
-    // to keep them warm - it only does any work when a user actually hits
-    // a dependency_unavailable failure and asks for it.
+    // Manually pings /health, which now runs a REAL similarity query
+    // (not just a connection check) against ChromaDB - the exact same
+    // call the triage pipeline makes, including its embedding step. A
+    // bare connection succeeding isn't enough proof: a cold instance can
+    // accept connections and still fail (or take much longer) on its
+    // first real query while its embedding model finishes loading. On
+    // success here, the VectorStore singleton also caches the live
+    // connection server-side, so the next triage submission skips the
+    // reconnect dance entirely. This is an on-demand alternative to
+    // polling the services on a schedule just to keep them warm - it
+    // only does any work when a user actually hits a
+    // dependency_unavailable failure and asks for it.
     async function wakeChromaDB() {
         wakeState = "waking";
         const container = document.getElementById("report-container");
@@ -424,6 +438,11 @@
             document.getElementById("status-msg").textContent = "Invalid JSON.";
             return;
         }
+
+        // Reset any leftover "ChromaDB is up" / "still down" message from a
+        // previous wake attempt so a fresh failure shows the button again
+        // instead of a stale result from last time.
+        wakeState = null;
 
         const btn = document.getElementById("submit-btn");
         btn.disabled = true;

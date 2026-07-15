@@ -20,7 +20,18 @@ logger = logging.getLogger(__name__)
 # a hard wall-clock timeout so a slow attempt gives up and hands control
 # back to the retry loop instead of hanging - daemon=True so an abandoned,
 # still-hung attempt never blocks process shutdown either.
-_CONNECT_ATTEMPT_TIMEOUT_SECONDS = 15
+#
+# The chromadb 1.x client also does more work per "attempt" than it used
+# to: get_or_create_collection() now makes 4 sequential HTTP round-trips
+# (auth identity check, tenant lookup, database lookup, then the actual
+# create/get call) instead of one, for its multi-tenancy handshake. Timed
+# directly against this deployment's production ChromaDB URL, a single
+# round-trip took ~12s while the instance was still warming up (and ~0.3s
+# once warm) - so a tight per-attempt timeout can get eaten by legitimate
+# (if slow) round-trips before the 4-request handshake ever completes,
+# not just by genuinely hung connections. 25s gives that handshake enough
+# room to finish even when each leg is individually slow.
+_CONNECT_ATTEMPT_TIMEOUT_SECONDS = 25
 
 
 class VectorStore:
@@ -58,7 +69,7 @@ class VectorStore:
         # sleeping instance used to surface immediately as a hard failure -
         # retry with backoff instead, so one triage request rides out the
         # wake-up instead of every request in that window failing outright.
-        stop=stop_after_attempt(8),
+        stop=stop_after_attempt(6),
         wait=wait_exponential(multiplier=1, min=2, max=15),
         before_sleep=before_sleep_log(logger, logging.WARNING),
         reraise=True,

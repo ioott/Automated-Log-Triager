@@ -3,7 +3,13 @@ import logging
 import threading
 from urllib.parse import urlparse
 from typing import List
-from tenacity import retry, stop_after_attempt, wait_exponential, before_sleep_log
+from tenacity import (
+    retry,
+    retry_if_exception,
+    stop_after_attempt,
+    wait_exponential,
+    before_sleep_log,
+)
 from app.core.config import settings
 from app.models.schemas import KnownErrorManualEntry
 
@@ -32,6 +38,29 @@ logger = logging.getLogger(__name__)
 # not just by genuinely hung connections. 25s gives that handshake enough
 # room to finish even when each leg is individually slow.
 _CONNECT_ATTEMPT_TIMEOUT_SECONDS = 25
+
+
+def _worth_retrying(exception: BaseException) -> bool:
+    """
+    Retry predicate for the connect loop below.
+
+    get_or_create_collection() makes 4 sequential HTTP requests per
+    attempt (auth identity, tenant lookup, database lookup, create/get).
+    Multiplied across retry attempts - and again across every click of
+    the dashboard's "Wake up ChromaDB" button, or every scheduled/keep-alive
+    hit - that's enough request volume that Render/Cloudflare's free-tier
+    edge started responding with 429 Too Many Requests (confirmed in
+    production logs: "Failed to connect to ChromaDB after retries: Too
+    Many Requests"). Retrying a 429 immediately just adds more requests to
+    an already-throttled endpoint, digging the hole deeper instead of
+    recovering from it - so don't retry those at all; fail fast and let
+    the caller (or the user, via the wake button) try again later once
+    the rate-limit window has passed. Genuine cold-start errors (timeouts,
+    connection refused, a placeholder HTML page instead of JSON) are still
+    retried as before.
+    """
+    message = str(exception).lower()
+    return "429" not in message and "too many requests" not in message
 
 
 class VectorStore:
@@ -69,8 +98,15 @@ class VectorStore:
         # sleeping instance used to surface immediately as a hard failure -
         # retry with backoff instead, so one triage request rides out the
         # wake-up instead of every request in that window failing outright.
-        stop=stop_after_attempt(6),
-        wait=wait_exponential(multiplier=1, min=2, max=15),
+        #
+        # Kept intentionally modest (3 attempts, 5-30s apart) rather than
+        # aggressive: each attempt is already 4 HTTP requests (see
+        # _worth_retrying's docstring), and retrying harder/faster was
+        # actively counterproductive in practice - it's what triggered the
+        # 429s in the first place.
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=5, max=30),
+        retry=retry_if_exception(_worth_retrying),
         before_sleep=before_sleep_log(logger, logging.WARNING),
         reraise=True,
     )

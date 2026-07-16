@@ -262,6 +262,16 @@
     // null | "waking" | "ready" | "still-down"
     let wakeState = null;
 
+    // Repeated clicks each cost several HTTP requests server-side (the
+    // ChromaDB client's connection handshake alone is 4 requests per
+    // attempt) - enough of them in a short window can get Render/
+    // Cloudflare's free-tier edge to start responding with 429 Too Many
+    // Requests, which only gets worse if you immediately retry into it.
+    // Enforce a short cooldown after a failed attempt so mashing the
+    // button doesn't dig that hole deeper.
+    let wakeCooldownUntil = 0;
+    const WAKE_COOLDOWN_MS = 15000;
+
     function renderWakeControl(r) {
         if (r.error_type !== "dependency_unavailable") return "";
         if (wakeState === "waking") {
@@ -275,6 +285,16 @@
             return `<div class="alert alert-success py-2 mb-0 mt-2 small fw-bold">✅ ChromaDB responded to a real test query — try sending your log again.</div>`;
         }
         if (wakeState === "still-down") {
+            const remainingMs = wakeCooldownUntil - Date.now();
+            if (remainingMs > 0) {
+                return `
+                <div class="alert alert-secondary py-2 mb-2 mt-2 small">
+                  Still not responding to a real query - repeated attempts can trigger rate limiting, so give it a moment.
+                </div>
+                <button class="btn btn-warning fw-bold w-100" disabled>
+                  ⚡ Try again in ${Math.ceil(remainingMs / 1000)}s
+                </button>`;
+            }
             return `
             <div class="alert alert-secondary py-2 mb-2 mt-2 small">
               Still not responding to a real query. Wait a bit and try again.
@@ -397,6 +417,9 @@
     // only does any work when a user actually hits a
     // dependency_unavailable failure and asks for it.
     async function wakeChromaDB() {
+        if (wakeState === "waking") return; // already in flight
+        if (wakeState === "still-down" && Date.now() < wakeCooldownUntil) return; // cooldown active
+
         wakeState = "waking";
         const container = document.getElementById("report-container");
         const reports = await (await fetch("/api/v1/reports")).json();
@@ -408,6 +431,9 @@
             wakeState = data?.dependencies?.chromadb === "ok" ? "ready" : "still-down";
         } catch {
             wakeState = "still-down";
+        }
+        if (wakeState === "still-down") {
+            wakeCooldownUntil = Date.now() + WAKE_COOLDOWN_MS;
         }
 
         const latestReports = await (await fetch("/api/v1/reports")).json();
@@ -443,6 +469,7 @@
         // previous wake attempt so a fresh failure shows the button again
         // instead of a stale result from last time.
         wakeState = null;
+        wakeCooldownUntil = 0;
 
         const btn = document.getElementById("submit-btn");
         btn.disabled = true;

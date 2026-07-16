@@ -8,14 +8,14 @@ Shared by:
 - app/main.py (seeds on API startup)
 - app/services/triage_pipeline.py (seeds again before every RAG lookup)
 
-Why call it from both places: the ChromaDB deployment behind this app has
-no persistent disk, so its data is wiped whenever ITS OWN instance
-restarts (e.g. a free-tier spin-down from inactivity) - independently of
-whether this API process has restarted. A startup-only check here isn't
-enough, since the two services' restart cycles aren't in sync. Calling
-`ensure_seeded()` before each RAG lookup keeps the collection populated
-regardless of which service last restarted; it's cheap when there's
-nothing to do (a single `count()` call).
+The vector DB is Chroma Cloud, with persistent storage, so this is no
+longer compensating for data being wiped on every dependency restart the
+way it was when ChromaDB was self-hosted on a disk-less free-tier
+instance. It's kept as a cheap defense-in-depth check regardless: a
+single `count()` call before each RAG lookup costs nothing once the
+collection is already seeded, and it means a brand-new database (e.g. a
+freshly created Chroma Cloud project) gets populated automatically on
+first use instead of requiring a manual seed step.
 """
 
 import logging

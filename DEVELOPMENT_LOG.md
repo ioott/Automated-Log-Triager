@@ -9,6 +9,7 @@
 - [x] **Phase 6: Observability & Operational Improvements** (Real health check, Correlation ID middleware, seed script, API tests, Makefile)
 - [x] **Phase 7: Risk Calibration Fix & Dashboard UX** (Fixed risk_assessment grounding, added knowledge-base listing endpoint, dashboard Clear/Paste buttons)
 - [x] **Phase 8: Demo Video** (Recorded and compressed the 3-scene walkthrough — code, dashboard, Swagger — linked from README.md; see `docs/demo.mp4`)
+- [x] **Phase 9: Vector DB Migration to Chroma Cloud** (Replaced self-hosted ChromaDB-on-Render with Chroma Cloud to eliminate cross-service cold-start compounding; fixed the client-side embedding model download that surfaced as a new, smaller cold-start failure once the bigger one was gone)
 
 ## 2. Architecture Summary
 
@@ -37,6 +38,9 @@ Services are initialized via FastAPI's `lifespan` context manager and injected i
 - `test: cover knowledge-base listing and risk-level grounding regression`
 - `chore: move test docs/postman collection to docs/ and seed script/sample data to scripts/`
 - `fix: make Makefile's test/seed targets call venv/bin/python directly so they work without manual activation`
+- `fix: found real cause of repeated wake failures - rate limiting, not cold start`
+- `migrate vector DB from self-hosted ChromaDB-on-Render to Chroma Cloud`
+- `fix: absorb the client-side embedding model download into the connect step`
 
 ## 4. Impediments & Applied Solutions
 - **CrewAI Dependency Bloat:** Build times were >1h. **Solution:** Replaced CrewAI entirely with a native LangChain `prompt | llm | JsonOutputParser` chain, removing the dependency from `requirements.txt`. `DiagnosticAgent` is now ~60 lines with no framework overhead.
@@ -45,6 +49,8 @@ Services are initialized via FastAPI's `lifespan` context manager and injected i
 - **Workspace Permissions:** Contorned by using shell redirection (`cat << EOF`) to manage files in the correct directory.
 - **Serialization:** Fixed datetime serialization issue in masking service.
 - **Risk Assessment Miscalibration:** Manual testing showed MEDIUM-severity errors diagnosed as HIGH, LOW as MEDIUM, and CRITICAL as HIGH. Root cause was two-fold: (1) the LLM prompt's `risk_assessment` enum only listed `HIGH, MEDIUM, LOW` — `CRITICAL` was never a valid option, silently forcing every critical known-error down to HIGH; (2) `TriagePipelineService` only forwarded the RAG-retrieved document text to the LLM, discarding the `risk_level` metadata already curated in the Known Errors Manual, so the model had to guess severity from prose alone. **Solution:** added `CRITICAL` to the prompt's enum and instructed the model to defer to the manual's risk level; `triage_pipeline.py` now appends `Known Risk Level (from manual): <level>` to the RAG context whenever a match is found. Verified against all three demo error codes after the fix (LOW/HIGH/CRITICAL all matched expectations).
+- **Two-Service Cold Start Compounding (Render Free Tier):** Both the API and a self-hosted ChromaDB ran as separate Render Free services, each hibernating independently. Each attempted fix exposed a deeper one: retry/backoff for the connection hid that the `chromadb` client's `httpx` session hardcodes `timeout=None`, fixing that exposed that `get_or_create_collection()` makes 4 sequential HTTP requests per attempt, and multiplying that across retries and repeated dashboard clicks was enough request volume to trip Render/Cloudflare's free-tier rate limiting (429s), which naive retrying made worse. **Solution:** stopped treating the symptom and addressed the architecture directly — migrated ChromaDB to **Chroma Cloud** (managed, always-on, persistent storage), removing the second hibernating service entirely rather than adding another layer of client-side resilience on top of it.
+- **Client-Side Embedding Model Download (post-migration):** After the Chroma Cloud migration, the first triage request following a Render cold start still occasionally failed. Root cause: `chromadb`'s default embedding function computes embeddings client-side (`onnxruntime` + a ~80MB ONNX model), downloaded fresh on every cold process since Render's Free tier has no persistent disk — a cost that existed before the migration too, but was previously masked by the much larger ChromaDB-hibernation problem. **Solution:** `VectorStore._connect_and_get_collection_once()` now runs a throwaway query immediately after connecting, forcing that one-time download to happen inside the already-retried, timeout-protected connect step instead of on a real user request. Verified locally with a cleared cache against the live Chroma Cloud account: ~20.7s cold, ~0.4s on the next call in the same process.
 
 ## 5. Next Steps
 - See README.md "Future Improvements" — search endpoints for `/api/v1/reports` and `/api/v1/knowledge-base` by id/keyword.

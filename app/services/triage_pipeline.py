@@ -26,10 +26,8 @@ class TriagePipelineService:
             masked_log = masking.mask_log(payload.model_dump())
             logger.info(f"Log masked successfully for {transaction_id}")
 
-            # ChromaDB has no persistent disk and can lose its data on its
-            # own restart cycle, independent of this process. Re-check
-            # before every RAG lookup rather than relying solely on the
-            # startup seed (see app/core/seed_data.py for why).
+            # Cheap safety net rather than relying solely on the startup
+            # seed - see app/core/seed_data.py for why.
             ensure_seeded(self.vector_store)
 
             query = (
@@ -80,12 +78,12 @@ class TriagePipelineService:
                 exc_info=True,
             )
             # ...but only ever store/display a short, classified message.
-            # Upstream HTTP clients (notably ChromaDB's, when the
-            # free-tier instance is asleep) can surface a raw HTML error
-            # page as the exception text, which would otherwise get
-            # rendered verbatim in the dashboard. `error_type` lets the
-            # frontend explain *why* it failed and decide whether to
-            # auto-retry (see classify_error's docstring).
+            # Upstream HTTP clients can surface a raw HTML error page or a
+            # long stack trace as the exception text, which would
+            # otherwise get rendered verbatim in the dashboard.
+            # `error_type` lets the frontend explain *why* it failed and
+            # decide whether to auto-retry (see classify_error's
+            # docstring).
             classification = classify_error(e)
             failed_report = {
                 "transaction_id": transaction_id,

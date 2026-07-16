@@ -34,12 +34,15 @@ Ensure the Docker environment is running (`docker compose up -d`) before testing
 
 ### 2.1. System Health
 - **Endpoint:** `GET /health`
-- **Description:** Basic liveness probe.
+- **Description:** Liveness probe that also runs a real similarity query against the vector DB, so a 200 response means the RAG dependency is genuinely reachable, not just that a connection succeeded.
 - **Expected Response (200 OK):**
   ```json
   {
       "status": "ok",
-      "environment": "development"
+      "environment": "development",
+      "dependencies": {
+          "chromadb": "ok"
+      }
   }
   ```
 

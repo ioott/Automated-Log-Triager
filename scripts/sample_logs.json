@@ -1,6 +1,6 @@
 [
   {
-    "note": "ERR_RPC_NODE_TIMEOUT · HIGH — já pré-carregado no dashboard",
+    "note": "ERR_RPC_NODE_TIMEOUT · HIGH — already pre-loaded in the dashboard",
     "payload": {
       "timestamp": "2026-06-30T10:00:00.000Z",
       "transaction_id": "tx_a1b2c3d4",

@@ -72,12 +72,13 @@ async def health_check(request: Request):
 
     Runs a real similarity query (not just get_or_create_collection) so
     this genuinely exercises the same path a triage request takes,
-    including ChromaDB's embedding function. A bare connection can
-    succeed - and did, in practice - while an actual query still fails on
-    a cold instance that hasn't finished loading its embedding model yet;
+    including the embedding function. A bare connection can succeed -
+    and did, in practice - while an actual query still fails on a fresh
+    process that hasn't finished loading its embedding model yet (see
+    VectorStore._connect_and_get_collection_once() in vector_db.py);
     checking only the connection made this endpoint (and the dashboard's
-    "Wake up ChromaDB" button, which polls it) report "ok" before triage
-    requests could reliably go through.
+    "Retry Knowledge Base Connection" button, which polls it) report
+    "ok" before triage requests could reliably go through.
     """
     db_status = "ok"
     try:

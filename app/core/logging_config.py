@@ -11,12 +11,11 @@ class JsonFormatter(logging.Formatter):
     The previous setup built the "JSON" manually with an f-string
     (`'"message": "%(message)s"'`). That breaks - and silently truncates
     the visible message - whenever the logged text contains a newline or
-    an unescaped quote, which happens whenever an upstream HTML error
-    page (e.g. Render's own 502 page, returned while a dependency's
-    free-tier instance wakes up from a cold start) ends up embedded in
-    an exception's string representation. json.dumps escapes all of
-    that correctly, so the full message is always readable in Render's
-    log viewer.
+    an unescaped quote, which happens whenever an upstream HTTP error
+    (e.g. a raw HTML error page from a dependency, or a multi-line
+    traceback) ends up embedded in an exception's string representation.
+    json.dumps escapes all of that correctly, so the full message is
+    always readable in Render's log viewer.
     """
 
     def format(self, record: logging.LogRecord) -> str:

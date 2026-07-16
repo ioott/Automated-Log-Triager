@@ -8,25 +8,16 @@ services:
       - "8000:8000"
     environment:
       - ENVIRONMENT=development
-      - VECTOR_DB_URL=http://chromadb:8000
+      # Vector DB is Chroma Cloud (managed) - same for local dev and
+      # production now, just pointed at different databases. No local
+      # ChromaDB container to run or keep in sync anymore. Use a separate
+      # database (e.g. "log-triager-dev") for local work so it doesn't
+      # share data with the production database.
+      - CHROMA_API_KEY=${CHROMA_API_KEY}
+      - CHROMA_TENANT=${CHROMA_TENANT}
+      - CHROMA_DATABASE=${CHROMA_DATABASE:-log-triager-dev}
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
       - GEMINI_MODEL_NAME=models/gemini-2.5-flash
     volumes:
       - .:/app
-      - chroma_model_cache:/root/.cache/chroma
     restart: unless-stopped
-    depends_on:
-      - chromadb
-
-  chromadb:
-    image: chromadb/chroma:0.5.0
-    container_name: log-triager-chromadb
-    ports:
-      - "8001:8000"
-    volumes:
-      - chromadb_data:/chroma/chroma
-    restart: unless-stopped
-
-volumes:
-  chromadb_data:
-  chroma_model_cache:

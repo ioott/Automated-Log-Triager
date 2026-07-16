@@ -1,7 +1,6 @@
 import chromadb
 import logging
 import threading
-from urllib.parse import urlparse
 from typing import List
 from tenacity import (
     retry,
@@ -15,48 +14,51 @@ from app.models.schemas import KnownErrorManualEntry
 
 logger = logging.getLogger(__name__)
 
-# chromadb's HttpClient hardcodes its underlying httpx client with
-# timeout=None (see api/fastapi.py in the chromadb package) - there is no
-# supported way to configure a request timeout through HttpClient()'s own
-# parameters. Against a Render free-tier instance that's still spinning up,
-# that means a single attempt can hang far longer than expected instead of
-# failing fast, which silently defeats the retry/backoff below (one hung
-# attempt can burn the entire retry budget on its own, and no retry ever
-# actually happens). Run each attempt in a daemon thread and bound it with
-# a hard wall-clock timeout so a slow attempt gives up and hands control
-# back to the retry loop instead of hanging - daemon=True so an abandoned,
-# still-hung attempt never blocks process shutdown either.
+# chromadb's HttpClient/CloudClient hardcode their underlying httpx client
+# with timeout=None (confirmed by reading api/fastapi.py in the chromadb
+# package: `httpx.Client(timeout=None, ...)`) - there is no supported way
+# to configure a request timeout through the client's own constructor
+# parameters. That's true regardless of host, so it's still a real risk
+# even against Chroma Cloud's always-on infra (a stalled TCP connection or
+# a proxy hiccup can still hang indefinitely). Run each attempt in a
+# daemon thread and bound it with a hard wall-clock timeout so a stuck
+# attempt gives up and hands control back to the retry loop instead of
+# hanging - daemon=True so an abandoned, still-hung attempt never blocks
+# process shutdown either.
 #
-# The chromadb 1.x client also does more work per "attempt" than it used
-# to: get_or_create_collection() now makes 4 sequential HTTP round-trips
-# (auth identity check, tenant lookup, database lookup, then the actual
-# create/get call) instead of one, for its multi-tenancy handshake. Timed
-# directly against this deployment's production ChromaDB URL, a single
-# round-trip took ~12s while the instance was still warming up (and ~0.3s
-# once warm) - so a tight per-attempt timeout can get eaten by legitimate
-# (if slow) round-trips before the 4-request handshake ever completes,
-# not just by genuinely hung connections. 25s gives that handshake enough
-# room to finish even when each leg is individually slow.
-_CONNECT_ATTEMPT_TIMEOUT_SECONDS = 25
+# The chromadb 1.x `Client` also does more work per "attempt" than it
+# looks like: constructing it runs get_user_identity(), then
+# _validate_tenant_database() -> get_tenant() + get_database() (all in
+# Client.__init__, see api/client.py), and get_or_create_collection() adds
+# a 4th request on top - 4 sequential HTTP round-trips per connection
+# attempt. That handshake is inherent to the chromadb 1.x client and
+# happens against ANY host, including Chroma Cloud - it's not something
+# moving off Render removes. What changes is what those 4 round-trips hit:
+# previously, against a Render free-tier ChromaDB instance still spinning
+# up from a cold stop, a single round-trip measured ~12s (vs ~0.3s once
+# warm), which is what forced a 25s per-attempt timeout in the first
+# place. Chroma Cloud is always-on production infrastructure, so the same
+# 4-request handshake should complete in well under a second end-to-end -
+# 10s stays generous for a slow network without being sized for a cold
+# boot that no longer happens.
+_CONNECT_ATTEMPT_TIMEOUT_SECONDS = 10
 
 
 def _worth_retrying(exception: BaseException) -> bool:
     """
     Retry predicate for the connect loop below.
 
-    get_or_create_collection() makes 4 sequential HTTP requests per
-    attempt (auth identity, tenant lookup, database lookup, create/get).
-    Multiplied across retry attempts - and again across every click of
-    the dashboard's "Wake up ChromaDB" button, or every scheduled/keep-alive
-    hit - that's enough request volume that Render/Cloudflare's free-tier
-    edge started responding with 429 Too Many Requests (confirmed in
-    production logs: "Failed to connect to ChromaDB after retries: Too
-    Many Requests"). Retrying a 429 immediately just adds more requests to
-    an already-throttled endpoint, digging the hole deeper instead of
-    recovering from it - so don't retry those at all; fail fast and let
-    the caller (or the user, via the wake button) try again later once
-    the rate-limit window has passed. Genuine cold-start errors (timeouts,
-    connection refused, a placeholder HTML page instead of JSON) are still
+    The chromadb 1.x client makes 4 sequential HTTP requests per
+    connection attempt (user identity, tenant lookup, database lookup,
+    then get_or_create_collection). Multiplied across retry attempts,
+    that's still real request volume against Chroma Cloud's own
+    usage-based rate limits - and retrying a 429 immediately just adds
+    more requests on top of an already-throttled window, digging the hole
+    deeper instead of recovering from it (this is exactly what happened
+    against Render/Cloudflare's free-tier edge in production before this
+    check existed). So 429s are not retried at all; fail fast and let the
+    caller try again once the rate-limit window has passed. Genuine
+    transient errors (timeouts, connection resets, DNS hiccups) are still
     retried as before.
     """
     message = str(exception).lower()
@@ -69,43 +71,30 @@ class VectorStore:
         self._collection = None
 
     def _connect_and_get_collection_once(self):
-        raw_url = settings.VECTOR_DB_URL
-
-        # Support bare "host:port" values (legacy/local docker-compose
-        # style, e.g. "chromadb:8000") by defaulting to http:// when no
-        # scheme is present, in addition to full URLs like
-        # "https://my-chroma.onrender.com".
-        parsed = urlparse(raw_url if "://" in raw_url else f"http://{raw_url}")
-
-        host = parsed.hostname or "localhost"
-        use_ssl = parsed.scheme == "https"
-        # Render's public onrender.com URLs are HTTPS-only and don't
-        # expose a custom port (traffic terminates on 443 and is
-        # forwarded internally) - only fall back to Chroma's default
-        # dev port (8000) when neither the URL nor the scheme implies one.
-        port = parsed.port or (443 if use_ssl else 8000)
-
-        client = chromadb.HttpClient(host=host, port=port, ssl=use_ssl)
+        client = chromadb.CloudClient(
+            api_key=settings.CHROMA_API_KEY,
+            tenant=settings.CHROMA_TENANT,
+            database=settings.CHROMA_DATABASE,
+        )
         collection = client.get_or_create_collection(name="known_errors")
         return client, collection
 
     @retry(
-        # ChromaDB's free-tier instance spins down after inactivity and can
-        # take well over a minute to come back: Render's own infra spin-up
-        # (~30-50s) plus Chroma re-downloading/initializing its default
-        # embedding model from scratch, since there's no persistent disk to
-        # cache it across restarts. A single failed attempt against a
-        # sleeping instance used to surface immediately as a hard failure -
-        # retry with backoff instead, so one triage request rides out the
-        # wake-up instead of every request in that window failing outright.
+        # Chroma Cloud is always-on managed infrastructure - there's no
+        # cold-start scenario to ride out here, unlike the old self-hosted
+        # ChromaDB-on-Render setup this replaced. This retry is now purely
+        # a defense against ordinary transient network issues (a dropped
+        # connection, a DNS blip, a momentary blip on Chroma Cloud's side),
+        # so it's tuned much shorter than before: 3 attempts, 2-10s apart
+        # instead of 5-30s apart.
         #
-        # Kept intentionally modest (3 attempts, 5-30s apart) rather than
-        # aggressive: each attempt is already 4 HTTP requests (see
-        # _worth_retrying's docstring), and retrying harder/faster was
-        # actively counterproductive in practice - it's what triggered the
-        # 429s in the first place.
+        # Still deliberately not aggressive: each attempt is still 4 HTTP
+        # requests (see _worth_retrying's docstring), and retrying harder/
+        # faster into a rate-limited window was what caused production 429s
+        # against the old Render deployment - that risk doesn't disappear
+        # just because the host changed.
         stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=5, max=30),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
         retry=retry_if_exception(_worth_retrying),
         before_sleep=before_sleep_log(logger, logging.WARNING),
         reraise=True,

@@ -7,7 +7,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Run with Docker (recommended):**
 ```bash
 docker compose up --build -d
-# API: http://localhost:8000 | Swagger: http://localhost:8000/docs | ChromaDB: http://localhost:8001
+# API: http://localhost:8000 | Swagger: http://localhost:8000/docs
+# Vector DB is Chroma Cloud (managed) - no local ChromaDB container. Requires
+# CHROMA_API_KEY / CHROMA_TENANT / CHROMA_DATABASE in .env.
 ```
 
 **Run locally:**
@@ -33,7 +35,9 @@ There is no configured linter — no `.flake8`, `ruff.toml`, or `pyproject.toml`
 |---|---|
 | `GOOGLE_API_KEY` | Google AI Studio key — required for AI diagnosis |
 | `GEMINI_MODEL_NAME` | Inference model (default: `gemini-2.5-flash`) |
-| `VECTOR_DB_URL` | ChromaDB HTTP URL (default: `http://chromadb:8000`) |
+| `CHROMA_API_KEY` | Chroma Cloud API key — required for RAG |
+| `CHROMA_TENANT` | Chroma Cloud tenant ID |
+| `CHROMA_DATABASE` | Chroma Cloud database name (default: `log-triager`) |
 | `ENVIRONMENT` | Runtime tag (default: `development`) |
 
 ## Architecture

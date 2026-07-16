@@ -37,12 +37,16 @@ def classify_error(exc: Exception, max_length: int = 300) -> dict:
       - "message": a short, human-readable message safe to display
 
     `type == "dependency_unavailable"` flags failures that look like a
-    transient upstream outage - most commonly ChromaDB's free-tier
-    instance still waking up from a cold start (its client can surface a
-    raw HTML error page, e.g. Render's own 502 page, as the exception
-    text; our own connection-failure message also gets tagged here).
-    The frontend uses this to explain *why* it failed instead of a
-    generic error, and to decide whether it's safe to auto-retry.
+    transient upstream outage. ChromaDB now runs on Chroma Cloud (always-on
+    managed infra, no free-tier hibernation on its side), so this is no
+    longer usually "ChromaDB is waking up" - it's more likely either the
+    Render API process itself having just cold-started (it still hibernates
+    on the Free tier) or the one-time client-side embedding model download
+    that happens on the first request after a cold start (see
+    vector_db.py's VectorStore._connect_and_get_collection_once()). Our own
+    connection-failure/timeout message also gets tagged here. The frontend
+    uses this to explain *why* it failed instead of a generic error, and to
+    decide whether it's safe to auto-retry.
 
     Anything else is tagged "unknown" and passed through (truncated) as
     the message, since it's more likely an actual application bug worth
@@ -59,9 +63,9 @@ def classify_error(exc: Exception, max_length: int = 300) -> dict:
         return {
             "type": "dependency_unavailable",
             "message": (
-                "ChromaDB didn't respond in time. This usually means its "
-                "free-tier instance is waking up from inactivity, which "
-                "can take up to a minute. Please try again shortly."
+                "The knowledge base connection is still warming up - this "
+                "can happen on the first request after the API restarts. "
+                "Please try again in a few seconds."
             ),
         }
 

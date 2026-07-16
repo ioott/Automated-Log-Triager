@@ -38,10 +38,19 @@ logger = logging.getLogger(__name__)
 # up from a cold stop, a single round-trip measured ~12s (vs ~0.3s once
 # warm), which is what forced a 25s per-attempt timeout in the first
 # place. Chroma Cloud is always-on production infrastructure, so the same
-# 4-request handshake should complete in well under a second end-to-end -
-# 10s stays generous for a slow network without being sized for a cold
-# boot that no longer happens.
-_CONNECT_ATTEMPT_TIMEOUT_SECONDS = 10
+# 4-request handshake completes in well under a second end-to-end.
+#
+# What still needs real headroom is the warm-up query right below this
+# method's other half (_connect_and_get_collection_once): the FIRST
+# embedding computation in a fresh process downloads a ~80MB ONNX model
+# client-side (measured ~15-20s locally), and Render's free tier has no
+# persistent disk to cache it across restarts. That download happens once
+# per cold process, not once per request, but this timeout has to cover
+# it on the attempt where it happens. 30s covers handshake + a cold
+# download with margin; every request after the first successful one in a
+# given process hits the self._collection is not None short-circuit in
+# _get_collection() and skips all of this entirely.
+_CONNECT_ATTEMPT_TIMEOUT_SECONDS = 30
 
 
 def _worth_retrying(exception: BaseException) -> bool:
@@ -77,16 +86,40 @@ class VectorStore:
             database=settings.CHROMA_DATABASE,
         )
         collection = client.get_or_create_collection(name="known_errors")
+
+        # Force the (lazy) default embedding function to finish loading
+        # right here, inside the retried/timeout-protected connect step,
+        # instead of letting it fire unprotected on whatever real call
+        # happens to be first (ingest_entries() or search_similar_errors()).
+        # chromadb's DefaultEmbeddingFunction computes embeddings CLIENT-SIDE
+        # (onnxruntime + a locally cached ~80MB ONNX model) rather than on
+        # Chroma Cloud's servers - confirmed by watching it download to
+        # ~/.cache/chroma/onnx_models on first use in a fresh process. On
+        # Render's free tier there's no persistent disk, so that cache is
+        # wiped on every cold start, and the ~80MB download (15-20s+
+        # measured locally) has to happen again on the first embedding call
+        # after every hibernation cycle - independently of how fast Chroma
+        # Cloud itself responds. This was previously masked by the old
+        # self-hosted setup's much bigger cold-start problems; fixing those
+        # is what made this smaller, separate cost visible as the last
+        # remaining cause of an occasional first-request failure. An empty
+        # query on a fresh collection is enough to trigger and absorb that
+        # one-time cost here, under retry/timeout coverage, rather than on
+        # a user's actual triage submission.
+        collection.query(query_texts=["__warmup__"], n_results=1)
+
         return client, collection
 
     @retry(
-        # Chroma Cloud is always-on managed infrastructure - there's no
-        # cold-start scenario to ride out here, unlike the old self-hosted
-        # ChromaDB-on-Render setup this replaced. This retry is now purely
-        # a defense against ordinary transient network issues (a dropped
-        # connection, a DNS blip, a momentary blip on Chroma Cloud's side),
-        # so it's tuned much shorter than before: 3 attempts, 2-10s apart
-        # instead of 5-30s apart.
+        # Chroma Cloud itself is always-on managed infrastructure - there's
+        # no minute-plus cold start on ITS side to ride out anymore, unlike
+        # the old self-hosted ChromaDB-on-Render setup this replaced. What's
+        # left is smaller and more ordinary: transient network blips, plus
+        # the one-time client-side ONNX model download on a fresh process
+        # (see _CONNECT_ATTEMPT_TIMEOUT_SECONDS above). 3 attempts, 3-15s
+        # apart, gives that a real chance to succeed without going back to
+        # the old 5-30s backoff that was sized for a cold boot measured in
+        # minutes, not seconds.
         #
         # Still deliberately not aggressive: each attempt is still 4 HTTP
         # requests (see _worth_retrying's docstring), and retrying harder/
@@ -94,7 +127,7 @@ class VectorStore:
         # against the old Render deployment - that risk doesn't disappear
         # just because the host changed.
         stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=2, max=10),
+        wait=wait_exponential(multiplier=1, min=3, max=15),
         retry=retry_if_exception(_worth_retrying),
         before_sleep=before_sleep_log(logger, logging.WARNING),
         reraise=True,
